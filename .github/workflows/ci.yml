@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... -count=1
+      - name: smoke (generate without a bootc host)
+        run: |
+          go build -o remora ./cmd/remora
+          D=$(mktemp -d)
+          printf 'base: quay.io/fedora/fedora-bootc:latest\npackage_manager: dnf\npackages: [htop]\n' > "$D/remora.yaml"
+          ./remora generate --dir "$D"
+          grep -q 'FROM quay.io/fedora/fedora-bootc:latest' "$D/Containerfile"
+          ./remora install --dir "$D" --no-build vim
+          ./remora list --dir "$D" | grep -qx vim
