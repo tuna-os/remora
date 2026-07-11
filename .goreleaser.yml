@@ -1,0 +1,20 @@
+version: 2
+project_name: remora
+
+builds:
+  - main: ./cmd/remora
+    binary: remora
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w"]
+
+archives:
+  - formats: [binary]
+    name_template: "remora-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  mode: replace
