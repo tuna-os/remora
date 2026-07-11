@@ -51,10 +51,27 @@ var pms = map[string]pm{
 			return "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\\n    " + strings.Join(pkgs, " \\\n    ")
 		},
 	},
+	"portage": {
+		// Distfiles + binpkgs survive across rebuilds; whether emerge
+		// compiles or fetches binpkgs is the base image's binhost config.
+		cacheMounts: []string{
+			"--mount=type=cache,dst=/var/cache/distfiles",
+			"--mount=type=cache,dst=/var/cache/binpkgs",
+		},
+		install: func(pkgs []string) string {
+			return "emerge --verbose \\\n    " + strings.Join(pkgs, " \\\n    ")
+		},
+	},
+	"apk": {
+		cacheMounts: nil, // apk's fetch step is cheap; no cache dir by default
+		install: func(pkgs []string) string {
+			return "apk add --no-interactive \\\n    " + strings.Join(pkgs, " \\\n    ")
+		},
+	},
 }
 
 // SupportedPMs lists the package managers Containerfile generation handles.
-func SupportedPMs() []string { return []string{"dnf", "zypper", "pacman", "apt"} }
+func SupportedPMs() []string { return []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} }
 
 // Containerfile renders the full Containerfile for m. base is the resolved
 // base image ref (never empty — the caller resolves "follow booted image"),

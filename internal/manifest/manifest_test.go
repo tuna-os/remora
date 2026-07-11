@@ -45,7 +45,7 @@ func TestValidateRejectsShellMetachars(t *testing.T) {
 }
 
 func TestValidateRejectsUnknownPM(t *testing.T) {
-	m := &Manifest{PackageManager: "portage"}
+	m := &Manifest{PackageManager: "nix"}
 	if err := m.Validate(); err == nil {
 		t.Fatal("expected rejection of unknown package_manager")
 	}

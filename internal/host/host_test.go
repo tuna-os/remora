@@ -39,6 +39,8 @@ func TestDetectPMByBinary(t *testing.T) {
 		{[]string{"zypper"}, "zypper"},
 		{[]string{"pacman"}, "pacman"},
 		{[]string{"apt-get"}, "apt"},
+		{[]string{"emerge"}, "portage"},
+		{[]string{"apk"}, "apk"},
 	}
 	for _, c := range cases {
 		got, err := detectPM("", has(c.bins...))
@@ -53,13 +55,14 @@ func TestDetectPMByOSRelease(t *testing.T) {
 	for id, want := range map[string]string{
 		"fedora": "dnf", "centos": "dnf", "opensuse-tumbleweed": "zypper",
 		"arch": "pacman", "debian": "apt", "ubuntu": "apt",
+		"gentoo": "portage", "alpine": "apk",
 	} {
 		got, err := detectPM(id, none)
 		if err != nil || got != want {
 			t.Fatalf("ID=%s: got %q err=%v, want %q", id, got, err, want)
 		}
 	}
-	if _, err := detectPM("gentoo", none); err == nil {
-		t.Fatal("expected detection failure for gentoo (no supported pm)")
+	if _, err := detectPM("nixos", none); err == nil {
+		t.Fatal("expected detection failure for nixos (no supported pm)")
 	}
 }

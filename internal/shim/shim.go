@@ -35,6 +35,10 @@ func names(pm string) []string {
 		return []string{"pacman"}
 	case "apt":
 		return []string{"apt", "apt-get"}
+	case "portage":
+		return []string{"emerge"}
+	case "apk":
+		return []string{"apk"}
 	}
 	return nil
 }
@@ -59,6 +63,23 @@ esac`
 -Syu|-Su) op=build ;;
 *) op= ;;
 esac`
+	case "portage":
+		// emerge's default action installs; a bare atom means install,
+		// explicit flags select remove/upgrade, other flags pass through
+		// (--search, --pretend, --info, ...).
+		dispatch = `case "${1:-}" in
+--unmerge|-C|--depclean|-c) op=remove ;;
+--sync|--update|-u|-uDN|-avuDN) op=build ;;
+-*|"") op= ;;
+*) op=install ;;
+esac`
+	case "apk":
+		dispatch = `case "${1:-}" in
+add) op=install ;;
+del) op=remove ;;
+upgrade) op=build ;;
+*) op= ;;
+esac`
 	default:
 		return "", fmt.Errorf("no shim for package manager %q", pm)
 	}
@@ -68,7 +89,11 @@ esac`
 # Mutating package operations can't touch the read-only /usr of a bootc
 # system; they go through remora (local layering) instead. Everything else
 # passes through to the real %[1]s.
-real="/usr/bin/%[1]s"
+real=""
+for p in /usr/bin/%[1]s /usr/sbin/%[1]s /sbin/%[1]s /bin/%[1]s; do
+    [ -x "$p" ] && { real="$p"; break; }
+done
+[ -n "$real" ] || { echo "remora shim: real %[1]s not found" >&2; exit 127; }
 
 %[2]s
 

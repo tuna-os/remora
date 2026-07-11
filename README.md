@@ -6,7 +6,7 @@ A remora rides along on a bigger fish. This remora rides along on your bootc
 base image: it keeps a small manifest of packages and customizations, builds
 them into a local derived image, and rebases your system to it — rebuilding
 automatically whenever the base updates. It is the container-native answer to
-`rpm-ostree install`, and it works on **dnf, zypper, pacman, and apt** bases.
+`rpm-ostree install`, and it works on **dnf, zypper, pacman, apt, portage (emerge), and apk** bases.
 
 Based on the local image factory pattern from
 [renner0e/server](https://github.com/renner0e/server),
@@ -47,7 +47,7 @@ remora status
 
 ```yaml
 base: ""                  # empty = follow the booted image
-package_manager: ""       # empty = auto-detect (dnf | zypper | pacman | apt)
+package_manager: ""       # empty = auto-detect (dnf | zypper | pacman | apt | portage | apk)
 packages:
   - htop
   - tailscale

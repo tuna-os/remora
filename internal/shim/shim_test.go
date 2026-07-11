@@ -11,9 +11,11 @@ import (
 func TestScriptPerPM(t *testing.T) {
 	cases := []struct{ pm, name, mustHave string }{
 		{"dnf", "dnf", "install|in) op=install"},
-		{"apt", "apt-get", `real="/usr/bin/apt-get"`},
+		{"apt", "apt-get", "/usr/bin/apt-get"},
 		{"zypper", "zypper", "remove|rm|erase|purge"},
 		{"pacman", "pacman", "-S|-Sy) op=install"},
+		{"portage", "emerge", "--unmerge|-C|--depclean"},
+		{"apk", "apk", "add) op=install"},
 	}
 	for _, c := range cases {
 		s, err := Script(c.pm, c.name)
@@ -30,7 +32,7 @@ func TestScriptPerPM(t *testing.T) {
 }
 
 func TestScriptUnknownPM(t *testing.T) {
-	if _, err := Script("portage", "emerge"); err == nil {
+	if _, err := Script("nix", "nix-env"); err == nil {
 		t.Fatal("expected error for unknown pm")
 	}
 }
@@ -51,7 +53,7 @@ func TestShimBehaviour(t *testing.T) {
 	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho REAL:$@\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	script = strings.Replace(script, `real="/usr/bin/dnf"`, `real="`+fake+`"`, 1)
+	script = strings.Replace(script, "/usr/bin/dnf /usr/sbin/dnf /sbin/dnf /bin/dnf", fake, 1)
 	shimPath := filepath.Join(dir, "dnf")
 	if err := os.WriteFile(shimPath, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

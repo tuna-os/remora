@@ -22,8 +22,9 @@ type Manifest struct {
 	// Base is the image to layer on. Empty means "follow the booted image"
 	// (resolved from bootc status at generation time).
 	Base string `yaml:"base,omitempty"`
-	// PackageManager overrides detection: dnf, zypper, pacman, apt.
-	// Empty means detect from the base image / host os-release.
+	// PackageManager overrides detection: dnf, zypper, pacman, apt,
+	// portage, apk. Empty means detect from the base image / host
+	// os-release.
 	PackageManager string `yaml:"package_manager,omitempty"`
 	// Packages are installed with the base's package manager.
 	Packages []string `yaml:"packages"`
@@ -117,14 +118,14 @@ func (m *Manifest) RemovePackages(pkgs []string) []string {
 	return removed
 }
 
-var validPMs = []string{"", "dnf", "zypper", "pacman", "apt"}
+var validPMs = []string{"", "dnf", "zypper", "pacman", "apt", "portage", "apk"}
 
 // Validate rejects manifests the generator can't act on. Package names are
 // checked against shell metacharacters because they are interpolated into
 // the generated Containerfile RUN line.
 func (m *Manifest) Validate() error {
 	if !slices.Contains(validPMs, m.PackageManager) {
-		return fmt.Errorf("package_manager must be one of dnf, zypper, pacman, apt (or empty for auto), got %q", m.PackageManager)
+		return fmt.Errorf("package_manager must be one of dnf, zypper, pacman, apt, portage, apk (or empty for auto), got %q", m.PackageManager)
 	}
 	for _, p := range m.Packages {
 		if strings.ContainsAny(p, " \t\n'\"`$&|;<>(){}\\") {

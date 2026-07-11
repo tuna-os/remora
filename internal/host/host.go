@@ -60,6 +60,10 @@ func detectPM(osID string, exists func(string) bool) (string, error) {
 		return "pacman", nil
 	case exists("apt-get"):
 		return "apt", nil
+	case exists("emerge"):
+		return "portage", nil
+	case exists("apk"):
+		return "apk", nil
 	}
 	switch osID {
 	case "fedora", "rhel", "centos", "almalinux", "rocky":
@@ -70,6 +74,10 @@ func detectPM(osID string, exists func(string) bool) (string, error) {
 		return "pacman", nil
 	case "debian", "ubuntu":
 		return "apt", nil
+	case "gentoo":
+		return "portage", nil
+	case "alpine", "postmarketos":
+		return "apk", nil
 	}
 	return "", fmt.Errorf("could not detect package manager (os-release ID=%q); set package_manager in remora.yaml", osID)
 }

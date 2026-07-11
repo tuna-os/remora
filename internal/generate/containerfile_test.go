@@ -10,10 +10,12 @@ import (
 func TestContainerfilePerPM(t *testing.T) {
 	m := &manifest.Manifest{Packages: []string{"htop", "vim"}}
 	cases := map[string][]string{
-		"dnf":    {"dnf -y install", "/var/cache/libdnf5"},
-		"zypper": {"zypper --non-interactive install", "/var/cache/zypp"},
-		"pacman": {"pacman -Sy --noconfirm --needed", "/var/cache/pacman/pkg"},
-		"apt":    {"apt-get install -y", "/var/cache/apt"},
+		"dnf":     {"dnf -y install", "/var/cache/libdnf5"},
+		"zypper":  {"zypper --non-interactive install", "/var/cache/zypp"},
+		"pacman":  {"pacman -Sy --noconfirm --needed", "/var/cache/pacman/pkg"},
+		"apt":     {"apt-get install -y", "/var/cache/apt"},
+		"portage": {"emerge --verbose", "/var/cache/distfiles"},
+		"apk":     {"apk add --no-interactive"},
 	}
 	for pm, wants := range cases {
 		out, err := Containerfile(m, "ghcr.io/tuna-os/yellowfin:gnome", pm)
@@ -36,7 +38,7 @@ func TestContainerfilePerPM(t *testing.T) {
 }
 
 func TestContainerfileUnsupportedPM(t *testing.T) {
-	if _, err := Containerfile(&manifest.Manifest{}, "x", "portage"); err == nil {
+	if _, err := Containerfile(&manifest.Manifest{}, "x", "nix"); err == nil {
 		t.Fatal("expected error for unsupported package manager")
 	}
 }
