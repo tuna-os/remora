@@ -7,10 +7,10 @@ default:
 check: fmt-check lint test
 
 fmt:
-    gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+    gofmt -w $(find . -name '*.go' -not -path './vendor/*')
 
 fmt-check:
-    test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*'))"
+    test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
 
 lint:
     go vet ./...
