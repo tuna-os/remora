@@ -1,0 +1,29 @@
+name: Workflow lint
+
+on:
+  pull_request:
+    paths: [".github/workflows/**"]
+  push:
+    branches: [main, dev, prod]
+    paths: [".github/workflows/**"]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-lint-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate GitHub Actions workflows
+        # Existing repositories own their shellcheck policy separately. This
+        # keeps actionlint focused on workflow syntax and expressions.
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color -ignore shellcheck
