@@ -22,6 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Validate GitHub Actions workflows
+        # Existing repositories own their shellcheck policy separately. This
+        # keeps actionlint focused on workflow syntax and expressions.
         uses: docker://rhysd/actionlint:latest
         with:
-          args: -color
+          args: -color -ignore shellcheck
