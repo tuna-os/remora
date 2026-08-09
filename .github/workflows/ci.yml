@@ -1,8 +1,19 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -12,10 +23,11 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test ./... -count=1
-      - name: smoke (generate without a bootc host)
+      - name: Run the local-equivalent checks
+        run: |
+          go build ./...
+          just check
+      - name: Smoke generated project without a bootc host
         run: |
           go build -o remora ./cmd/remora
           D=$(mktemp -d)
@@ -24,3 +36,11 @@ jobs:
           grep -q 'FROM quay.io/fedora/fedora-bootc:latest' "$D/Containerfile"
           ./remora install --dir "$D" --no-build vim
           ./remora list --dir "$D" | grep -qx vim
+
+  required-checks:
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify required validation passed
+        run: test "${{ needs.test.result }}" = success
