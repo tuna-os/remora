@@ -23,6 +23,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: extractions/setup-just@v2
       - name: Run the local-equivalent checks
         run: |
           go build ./...
