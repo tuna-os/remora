@@ -148,14 +148,14 @@ func cmdInit(dir string) error {
 	if err := regenerate(dir, m); err != nil {
 		return err
 	}
-	if err := factory.InstallUnits(m, dir, func() error {
+	if err := factory.InstallUnits(m, dir, "/", func() error {
 		return host.Systemctl("daemon-reload")
 	}); err != nil {
 		return err
 	}
 	fmt.Printf("installed %s and %s\n", factory.QuadletPath, factory.TimerPath)
 	if host.UupdPresent() {
-		if err := factory.InstallUupdHook(); err != nil {
+		if err := factory.InstallUupdHook("/"); err != nil {
 			return err
 		}
 		if err := host.Systemctl("daemon-reload"); err != nil {

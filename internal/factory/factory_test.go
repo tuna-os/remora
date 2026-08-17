@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,5 +70,106 @@ func TestWriteContext(t *testing.T) {
 		if fi, err := os.Stat(filepath.Join(dir, sub)); err != nil || !fi.IsDir() {
 			t.Fatalf("missing %s dir", sub)
 		}
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(b)
+}
+
+func TestInstallUupdHook(t *testing.T) {
+	root := t.TempDir()
+	if err := InstallUupdHook(root); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, UupdDropinPath)
+	if got := readFile(t, path); got != UupdDropin() {
+		t.Errorf("drop-in content mismatch:\n got %q\nwant %q", got, UupdDropin())
+	}
+	// Parent dirs must be created (uupd.service.d is a new tree under root).
+	if fi, err := os.Stat(filepath.Dir(path)); err != nil || !fi.IsDir() {
+		t.Fatalf("drop-in parent dir not created: %v", err)
+	}
+	// Nothing may be written outside root.
+	if _, err := os.Stat(filepath.Join("/etc/systemd/system/uupd.service.d", "10-remora.conf")); !os.IsNotExist(err) {
+		t.Errorf("install wrote outside root (host /etc touched): %v", err)
+	}
+}
+
+func TestInstallUnits(t *testing.T) {
+	root := t.TempDir()
+	dir := "/srv/remora"
+	m := &manifest.Manifest{}
+	// /etc/systemd/system exists on real systemd hosts but not under a temp
+	// root; InstallUnits only creates the quadlet dir (its own tree).
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(TimerPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var reloaded int
+	err := InstallUnits(m, dir, root, func() error {
+		reloaded++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded != 1 {
+		t.Errorf("reload called %d times, want 1", reloaded)
+	}
+	quadletPath := filepath.Join(root, QuadletPath)
+	timerPath := filepath.Join(root, TimerPath)
+	if got := readFile(t, quadletPath); got != Quadlet(m, dir) {
+		t.Errorf("quadlet content mismatch:\n got %q\nwant %q", got, Quadlet(m, dir))
+	}
+	if got := readFile(t, timerPath); got != Timer(m) {
+		t.Errorf("timer content mismatch:\n got %q\nwant %q", got, Timer(m))
+	}
+	for _, p := range []string{quadletPath, timerPath} {
+		if fi, err := os.Stat(filepath.Dir(p)); err != nil || !fi.IsDir() {
+			t.Fatalf("parent dir %s not created: %v", filepath.Dir(p), err)
+		}
+	}
+}
+
+func TestInstallUnitsReloadErrorPropagates(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(TimerPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("daemon-reload failed")
+	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, func() error {
+		return want
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("reload error not propagated: got %v, want %v", err, want)
+	}
+	// Files must still have been written before the reload attempt.
+	if _, err := os.Stat(filepath.Join(root, QuadletPath)); err != nil {
+		t.Errorf("quadlet missing when reload fails: %v", err)
+	}
+}
+
+func TestInstallUnitsFailureStopsBeforeReload(t *testing.T) {
+	// Make the quadlet dir uncreatable so the first MkdirAll fails.
+	root := t.TempDir()
+	blocker := filepath.Join(root, "etc")
+	if err := os.WriteFile(blocker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := false
+	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, func() error {
+		reloaded = true
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if reloaded {
+		t.Error("reload must not run when a write step fails")
 	}
 }
