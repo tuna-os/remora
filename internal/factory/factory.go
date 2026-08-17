@@ -103,23 +103,28 @@ After=` + ServiceName + `
 `
 }
 
-// InstallUupdHook writes the uupd drop-in.
-func InstallUupdHook() error {
-	if err := os.MkdirAll(filepath.Dir(UupdDropinPath), 0o755); err != nil {
+// InstallUupdHook writes the uupd drop-in under root (root == "/" for the
+// real system; tests pass t.TempDir()).
+func InstallUupdHook(root string) error {
+	path := filepath.Join(root, UupdDropinPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(UupdDropinPath, []byte(UupdDropin()), 0o644)
+	return os.WriteFile(path, []byte(UupdDropin()), 0o644)
 }
 
-// InstallUnits writes the quadlet and timer and reloads systemd.
-func InstallUnits(m *manifest.Manifest, dir string, reload func() error) error {
-	if err := os.MkdirAll(filepath.Dir(QuadletPath), 0o755); err != nil {
+// InstallUnits writes the quadlet and timer under root (root == "/" for the
+// real system; tests pass t.TempDir()) and reloads systemd.
+func InstallUnits(m *manifest.Manifest, dir, root string, reload func() error) error {
+	quadletPath := filepath.Join(root, QuadletPath)
+	timerPath := filepath.Join(root, TimerPath)
+	if err := os.MkdirAll(filepath.Dir(quadletPath), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(QuadletPath, []byte(Quadlet(m, dir)), 0o644); err != nil {
+	if err := os.WriteFile(quadletPath, []byte(Quadlet(m, dir)), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(TimerPath, []byte(Timer(m)), 0o644); err != nil {
+	if err := os.WriteFile(timerPath, []byte(Timer(m)), 0o644); err != nil {
 		return err
 	}
 	return reload()
