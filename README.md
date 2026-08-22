@@ -34,6 +34,36 @@ remora.yaml ──► Containerfile ──► podman quadlet (.build, Pull=newer
   published upstream ⇒ your layers are rebuilt on top of it — then
   `bootc switch`es to the result. Reboot into the update as usual.
 
+## Installation
+
+Remora publishes standalone Linux binaries for amd64 and arm64 on the
+[Releases](https://github.com/tuna-os/remora/releases/latest) page. Download
+the binary and checksum file for the latest release, verify the download, and
+install it in `/usr/local/bin`:
+
+```bash
+arch=$(uname -m)
+case "$arch" in
+  x86_64) arch=amd64 ;;
+  aarch64|arm64) arch=arm64 ;;
+  *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
+esac
+
+curl -LO "https://github.com/tuna-os/remora/releases/latest/download/remora-linux-${arch}"
+curl -LO "https://github.com/tuna-os/remora/releases/latest/download/checksums.txt"
+sha256sum --check --ignore-missing checksums.txt
+sudo install -m 0755 "remora-linux-${arch}" /usr/local/bin/remora
+rm "remora-linux-${arch}" checksums.txt
+```
+
+To build from source instead, install the Go version declared in `go.mod`,
+clone this repository, and run:
+
+```bash
+go build -o remora ./cmd/remora
+sudo install -m 0755 remora /usr/local/bin/remora
+```
+
 ## Quickstart
 
 ```bash
