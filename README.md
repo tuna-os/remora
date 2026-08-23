@@ -41,7 +41,14 @@ Remora publishes standalone Linux binaries for amd64 and arm64 on the
 the binary and checksum file for the latest release, verify the download, and
 install it in `/usr/local/bin`:
 
+Run this as a script (`bash install-remora.sh`) rather than pasting it line by
+line, so that a failed download or a failed checksum stops it before the
+`sudo install`:
+
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
 arch=$(uname -m)
 case "$arch" in
   x86_64) arch=amd64 ;;
@@ -49,12 +56,24 @@ case "$arch" in
   *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 
-curl -LO "https://github.com/tuna-os/remora/releases/latest/download/remora-linux-${arch}"
-curl -LO "https://github.com/tuna-os/remora/releases/latest/download/checksums.txt"
+# -f makes an HTTP error a non-zero exit instead of a saved error page.
+curl -fLO "https://github.com/tuna-os/remora/releases/latest/download/remora-linux-${arch}"
+curl -fLO "https://github.com/tuna-os/remora/releases/latest/download/checksums.txt"
+
+# Verify BEFORE installing, and stop here if the hash does not match. remora
+# runs as root, installs shims into /usr/local/bin ahead of /usr/bin on PATH,
+# and owns a timer that rebases the host image — a binary that failed this
+# check must never reach /usr/local/bin.
 sha256sum --check --ignore-missing checksums.txt
+
 sudo install -m 0755 "remora-linux-${arch}" /usr/local/bin/remora
 rm "remora-linux-${arch}" checksums.txt
 ```
+
+`checksums.txt` is served from the same place as the binary, so it proves the
+download was not corrupted in transit — it is not a signature and cannot tell
+a genuine release from a tampered one. Signed releases are tracked in
+[#19](https://github.com/tuna-os/remora/issues/19).
 
 To build from source instead, install the Go version declared in `go.mod`,
 clone this repository, and run:
