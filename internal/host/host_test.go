@@ -66,3 +66,20 @@ func TestDetectPMByOSRelease(t *testing.T) {
 		t.Fatal("expected detection failure for nixos (no supported pm)")
 	}
 }
+
+func TestParseOSReleaseID(t *testing.T) {
+	cases := []struct {
+		content string
+		want    string
+	}{
+		{"NAME=Fedora\nID=fedora\nVERSION=42\n", "fedora"},
+		{"NAME=\"Ubuntu\"\nID=\"ubuntu\"\n", "ubuntu"},
+		{"NAME=Unknown\n", ""},
+	}
+	for _, c := range cases {
+		got := parseOSReleaseID([]byte(c.content))
+		if got != c.want {
+			t.Errorf("content=%q: got %q, want %q", c.content, got, c.want)
+		}
+	}
+}

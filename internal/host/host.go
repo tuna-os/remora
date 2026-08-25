@@ -92,6 +92,10 @@ func osReleaseID() string {
 	if err != nil {
 		return ""
 	}
+	return parseOSReleaseID(data)
+}
+
+func parseOSReleaseID(data []byte) string {
 	for _, line := range strings.Split(string(data), "\n") {
 		if after, ok := strings.CutPrefix(line, "ID="); ok {
 			return strings.Trim(after, `"`)
