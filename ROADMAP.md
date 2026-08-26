@@ -32,8 +32,16 @@ is the same on every TunaOS variant.
 - **Preinstalled**: TunaOS images pin `REMORA_VERSION=v0.2.0` via
   `build_scripts/install-remora.sh` (deliberately no renovate marker — the
   sha256 check would fail on an unpinned bump). **The pin is now a release
-  behind**; bumping it to v0.3.0 is what delivers the hardened install path
-  to images.
+  behind** — tracked in tuna-os/tunaOS#2083.
+
+  Note: #21 describes the stale pin as leaving images on "the vulnerable
+  install path". That conflates two different things. #19/#20 hardened the
+  README install snippet — the copy-paste instructions for manual installs.
+  tunaOS builds images with its own `build_scripts/install-remora.sh`, which
+  already verifies with `sha256sum --check --strict` under `set -euo
+  pipefail` and was never vulnerable. What the bump actually delivers is the
+  v0.2.0 rebase defect: its quadlet switches to a bare tag, so a rebuild with
+  new content under an unchanged tag can fail to stage.
 - **Maturity**: active development since 07-11; factory, generate, host,
   manifest, and shim internals covered by unit tests; install snippet
   hardened to fail closed on bad checksums (#19/#20).
@@ -43,7 +51,7 @@ is the same on every TunaOS variant.
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Bump `REMORA_VERSION` in tunaOS `build_scripts/install-remora.sh` to v0.3.0 — images still ship the pre-hardening install path | #21 | 🔴 Open |
+| P0 | Bump `REMORA_VERSION` in tunaOS `build_scripts/install-remora.sh` to v0.3.0 — images ship v0.2.0, whose quadlet rebases to a bare tag and can silently fail to stage a rebuild | tunaOS#2083 | 🔴 Open |
 | P1 | Runtime units drift from the manifest after initialization | #17 | 🟡 Open |
 | P2 | Per-package-manager lockfile resolver, so a rebuild's cache key is the resolved package set rather than the spec list | — | ⬜ Not started |
 | ~~P0~~ | ~~Cut a release carrying the 08-14→08-23 fixes~~ — shipped in v0.3.0 | #21 | ✅ Done |
