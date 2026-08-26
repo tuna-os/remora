@@ -17,4 +17,8 @@ checksum:
   name_template: checksums.txt
 
 release:
-  mode: replace
+  # release-please creates the GitHub release with the CHANGELOG.md entry as
+  # its body; goreleaser only attaches the binaries and checksums.txt. Note
+  # that `mode` governs the release *notes*, not the artifacts, so anything
+  # but keep-existing would clobber or duplicate the curated changelog.
+  mode: keep-existing

@@ -1,0 +1,60 @@
+name: Release Please
+
+# Keeps an open "chore: release vX.Y.Z" pull request describing the next
+# release. Merging that PR is what cuts a release: release-please creates the
+# tag and the GitHub release from CHANGELOG.md, and the goreleaser job below
+# attaches the binaries and checksums.txt to it.
+#
+# goreleaser runs here rather than being left to release.yml because a tag
+# created with GITHUB_TOKEN does not trigger further workflow runs. release.yml
+# still exists for tags pushed by hand, which is the escape hatch when a
+# release has to happen outside this flow.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  goreleaser:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
