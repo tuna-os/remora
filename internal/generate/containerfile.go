@@ -3,6 +3,13 @@
 // The generated file is overwritten on every build — users customize via the
 // manifest, build_files/ scripts, and system_files/ overlay, never by editing
 // the Containerfile.
+//
+// The Containerfile is deliberately split into three RUN layers — overlay +
+// extra_run, then packages, then build scripts — so that editing a build
+// script does not invalidate the expensive package layer. Combined with a
+// digest-pinned FROM and `podman build --timestamp 0`, identical inputs
+// produce an identical image digest, which is what lets remora skip the
+// bootc switch when a scheduled rebuild changed nothing.
 package generate
 
 import (
@@ -14,11 +21,22 @@ import (
 
 // pm holds the per-package-manager fragments of the generated RUN script.
 type pm struct {
-	// cacheMounts are extra --mount flags on the RUN line (package caches).
+	// cacheMounts are extra --mount flags on the package RUN line.
 	cacheMounts []string
 	// install renders the package installation command.
 	install func(pkgs []string) string
+	// scrub lists paths to delete after the package transaction. Package
+	// state that varies between otherwise-identical builds (logs, history
+	// databases) would otherwise perturb the image digest and defeat the
+	// no-op rebuild path. Cache directories mounted as type=cache are not
+	// part of the layer; listing them here is harmless but redundant.
+	scrub []string
 }
+
+// commonScrub is deleted after the package transaction regardless of package
+// manager. Logs record timestamps and hostnames, so they differ on every
+// build even when the installed package set is byte-identical.
+var commonScrub = []string{"/var/log/*", "/var/tmp/*"}
 
 var pms = map[string]pm{
 	"dnf": {
@@ -29,6 +47,10 @@ var pms = map[string]pm{
 		install: func(pkgs []string) string {
 			return "dnf -y install \\\n    " + strings.Join(pkgs, " \\\n    ")
 		},
+		// dnf's history database records transaction timestamps. The rpmdb
+		// under /usr/lib/sysimage/rpm is deliberately NOT scrubbed — it is
+		// the installed-package record, not a cache.
+		scrub: []string{"/var/lib/dnf/history*"},
 	},
 	"zypper": {
 		cacheMounts: []string{"--mount=type=cache,dst=/var/cache/zypp"},
@@ -74,8 +96,8 @@ var pms = map[string]pm{
 func SupportedPMs() []string { return []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} }
 
 // Containerfile renders the full Containerfile for m. base is the resolved
-// base image ref (never empty — the caller resolves "follow booted image"),
-// pmName the resolved package manager.
+// base image ref (never empty — the caller resolves "follow booted image",
+// and pins it to a digest where it can), pmName the resolved package manager.
 func Containerfile(m *manifest.Manifest, base, pmName string) (string, error) {
 	p, ok := pms[pmName]
 	if !ok {
@@ -95,39 +117,52 @@ func Containerfile(m *manifest.Manifest, base, pmName string) (string, error) {
 
 	fmt.Fprintf(&b, "FROM %s\n\n", base)
 
-	mounts := append([]string{
-		"--mount=type=bind,from=ctx,source=/,target=/ctx",
-		"--mount=type=tmpfs,dst=/tmp",
-	}, p.cacheMounts...)
-	fmt.Fprintf(&b, "RUN %s <<'REMORA_EOF'\n", strings.Join(mounts, " \\\n    "))
-	b.WriteString("set -euo pipefail\n\n")
+	ctxMount := "--mount=type=bind,from=ctx,source=/,target=/ctx"
+	tmpMount := "--mount=type=tmpfs,dst=/tmp"
 
-	b.WriteString("# System files overlay\n")
-	b.WriteString("if [ -d /ctx/system_files ] && [ -n \"$(ls -A /ctx/system_files 2>/dev/null)\" ]; then\n")
-	b.WriteString("    cp -avf /ctx/system_files/. /\n")
-	b.WriteString("fi\n\n")
-
-	if len(m.ExtraRun) > 0 {
-		b.WriteString("# extra_run (manifest)\n")
-		for _, line := range m.ExtraRun {
-			b.WriteString(line + "\n")
+	// Layer 1: overlay + extra_run. Cheap and changes rarely.
+	writeRun(&b, "System files overlay and extra_run", []string{ctxMount, tmpMount}, func(s *strings.Builder) {
+		s.WriteString("if [ -d /ctx/system_files ] && [ -n \"$(ls -A /ctx/system_files 2>/dev/null)\" ]; then\n")
+		s.WriteString("    cp -avf /ctx/system_files/. /\n")
+		s.WriteString("fi\n")
+		if len(m.ExtraRun) > 0 {
+			s.WriteString("\n# extra_run (manifest)\n")
+			for _, line := range m.ExtraRun {
+				s.WriteString(line + "\n")
+			}
 		}
-		b.WriteString("\n")
-	}
+	})
 
+	// Layer 2: the package transaction, on its own so that editing a build
+	// script or the overlay does not invalidate it.
 	if len(m.Packages) > 0 {
-		b.WriteString("# Packages (manifest)\n")
-		b.WriteString(p.install(m.Packages) + "\n\n")
+		mounts := append([]string{tmpMount}, p.cacheMounts...)
+		writeRun(&b, "Packages (manifest)", mounts, func(s *strings.Builder) {
+			s.WriteString(p.install(m.Packages) + "\n")
+			scrub := append(append([]string{}, p.scrub...), commonScrub...)
+			s.WriteString("\n# Scrub build-varying state so identical inputs yield an identical digest.\n")
+			s.WriteString("rm -rf " + strings.Join(scrub, " ") + "\n")
+		})
 	}
 
-	b.WriteString("# User build scripts, in lexical order\n")
-	b.WriteString("for script in /ctx/build_files/*.sh; do\n")
-	b.WriteString("    [ -e \"$script\" ] || continue\n")
-	b.WriteString("    echo \"remora: running $script\"\n")
-	b.WriteString("    bash \"$script\"\n")
-	b.WriteString("done\n")
-	b.WriteString("REMORA_EOF\n\n")
+	// Layer 3: user build scripts.
+	writeRun(&b, "User build scripts, in lexical order", []string{ctxMount, tmpMount}, func(s *strings.Builder) {
+		s.WriteString("for script in /ctx/build_files/*.sh; do\n")
+		s.WriteString("    [ -e \"$script\" ] || continue\n")
+		s.WriteString("    echo \"remora: running $script\"\n")
+		s.WriteString("    bash \"$script\"\n")
+		s.WriteString("done\n")
+	})
 
 	b.WriteString("RUN bootc container lint\n")
 	return b.String(), nil
+}
+
+// writeRun emits one heredoc RUN layer with the given mounts and body.
+func writeRun(b *strings.Builder, comment string, mounts []string, body func(*strings.Builder)) {
+	fmt.Fprintf(b, "# %s\n", comment)
+	fmt.Fprintf(b, "RUN %s <<'REMORA_EOF'\n", strings.Join(mounts, " \\\n    "))
+	b.WriteString("set -euo pipefail\n\n")
+	body(b)
+	b.WriteString("REMORA_EOF\n\n")
 }

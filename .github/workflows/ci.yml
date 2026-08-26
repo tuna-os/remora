@@ -38,6 +38,23 @@ jobs:
           ./remora install --dir "$D" --no-build vim
           ./remora list --dir "$D" | grep -qx vim
 
+      - name: Smoke the digest-pinned base path
+        run: |
+          D=$(mktemp -d)
+          printf 'base: quay.io/fedora/fedora-bootc\npackage_manager: dnf\npackages: [htop]\n' > "$D/remora.yaml"
+          # A pre-existing pin is reused verbatim, with no registry round trip.
+          printf 'quay.io/fedora/fedora-bootc@sha256:%064d\n' 0 > "$D/base"
+          ./remora generate --dir "$D"
+          grep -q "FROM quay.io/fedora/fedora-bootc@sha256:" "$D/Containerfile"
+          # The package transaction gets its own layer, so that editing a
+          # build script does not invalidate the cached install.
+          test "$(grep -c "<<'REMORA_EOF'" "$D/Containerfile")" = 3
+          # apply refuses to switch when nothing has been built.
+          if ./remora apply --dir "$D" 2>/dev/null; then
+            echo "apply should fail with no local image" >&2
+            exit 1
+          fi
+
   required-checks:
     if: always()
     needs: [test]
