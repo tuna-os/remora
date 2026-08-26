@@ -97,6 +97,15 @@ nothing to tag by hand.
 Do not edit `CHANGELOG.md` or `.release-please-manifest.json` by hand — both
 are generated, and hand edits are overwritten on the next run.
 
+The release pull request is opened by a bot using `GITHUB_TOKEN`, and events
+from that token do not start workflow runs — so it would arrive with no checks
+on it. The release workflow works around this by dispatching CI onto the
+release branch explicitly (`workflow_dispatch` is the documented exception
+that always creates a run), which attaches the checks to the pull request's
+head commit. If those checks are ever missing, the release is still safe to
+cut when CI is green on `main` for the commit being released: the release PR
+only touches generated metadata.
+
 `.github/workflows/release.yml` still fires on a hand-pushed `v*` tag. That is
 the escape hatch for releasing outside this flow; the normal path is merging
 the release PR.

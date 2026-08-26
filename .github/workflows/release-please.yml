@@ -28,6 +28,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # Required to dispatch the CI workflow onto the release branch below.
+      actions: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -36,6 +38,29 @@ jobs:
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The release pull request is opened with GITHUB_TOKEN, and events
+      # triggered by that token do not start workflow runs -- so the release
+      # PR arrives with no checks on it at all. workflow_dispatch is the one
+      # documented exception: it always creates a run. Dispatching CI on the
+      # release branch attaches the checks to that branch's head, which is the
+      # PR's head commit, so they show up on the pull request.
+      #
+      # Without this the only alternative is a PAT or GitHub App token, which
+      # needs a secret this repository does not have.
+      - name: Run CI against the release pull request
+        # Never block a release on this: the release itself is the important
+        # half, and a failed dispatch just leaves the PR as bare as it was.
+        continue-on-error: true
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # release-please derives the branch from its branch prefix and the
+          # target branch; this workflow only ever runs on the target branch.
+          BRANCH: release-please--branches--${{ github.ref_name }}
+        run: |
+          echo "Dispatching CI on $BRANCH"
+          gh workflow run ci.yml --ref "$BRANCH" --repo "$GITHUB_REPOSITORY"
 
   goreleaser:
     needs: release-please
