@@ -57,7 +57,7 @@ func TestUupdDropin(t *testing.T) {
 func TestWriteContext(t *testing.T) {
 	dir := t.TempDir()
 	m := &manifest.Manifest{Packages: []string{"htop"}}
-	if err := WriteContext(dir, m, "base:latest", "dnf"); err != nil {
+	if err := WriteContext(dir, m, "base:latest", "dnf", ""); err != nil {
 		t.Fatal(err)
 	}
 	cf, err := os.ReadFile(filepath.Join(dir, "Containerfile"))
@@ -173,5 +173,30 @@ func TestInstallUnitsFailureStopsBeforeReload(t *testing.T) {
 	}
 	if reloaded {
 		t.Error("reload must not run when a write step fails")
+	}
+}
+
+// The quadlet's ExecStartPre refreshes the base pin immediately before the
+// build. If that command did not also rewrite the Containerfile, the build
+// would keep using the previous FROM digest and the base would never actually
+// update on the timer path. Assert the unit still calls a command that does
+// both, and that it runs before the build rather than after.
+func TestQuadletRefreshesContextBeforeBuilding(t *testing.T) {
+	q := Quadlet(&manifest.Manifest{}, "/etc/remora", "/usr/bin/remora")
+	pre := strings.Index(q, "ExecStartPre=-/usr/bin/remora --dir /etc/remora upgrade --no-build")
+	if pre < 0 {
+		t.Fatal("quadlet must refresh the base pin (and context) before building")
+	}
+	post := strings.Index(q, "ExecStartPost=/usr/bin/remora --dir /etc/remora apply")
+	if post < 0 {
+		t.Fatal("quadlet must rebase after building")
+	}
+	if pre > post {
+		t.Error("the pin refresh must precede the rebase")
+	}
+	// Tolerating a failed refresh is deliberate: an unreachable registry
+	// must not block a rebuild of the pin we already have.
+	if !strings.Contains(q, "ExecStartPre=-") {
+		t.Error("the pin refresh must be prefixed with - so a registry outage does not fail the build")
 	}
 }

@@ -25,6 +25,10 @@ type pm struct {
 	cacheMounts []string
 	// install renders the package installation command.
 	install func(pkgs []string) string
+	// installLock renders installation from a lockfile at path, when this
+	// package manager has a resolver. nil means no lockfile support, and
+	// generation always uses install.
+	installLock func(path string) string
 	// scrub lists paths to delete after the package transaction. Package
 	// state that varies between otherwise-identical builds (logs, history
 	// databases) would otherwise perturb the image digest and defeat the
@@ -46,6 +50,9 @@ var pms = map[string]pm{
 		},
 		install: func(pkgs []string) string {
 			return "dnf -y install \\\n    " + strings.Join(pkgs, " \\\n    ")
+		},
+		installLock: func(path string) string {
+			return "dnf5 manifest install --assumeyes --manifest " + path
 		},
 		// dnf's history database records transaction timestamps. The rpmdb
 		// under /usr/lib/sysimage/rpm is deliberately NOT scrubbed — it is
@@ -98,7 +105,14 @@ func SupportedPMs() []string { return []string{"dnf", "zypper", "pacman", "apt",
 // Containerfile renders the full Containerfile for m. base is the resolved
 // base image ref (never empty — the caller resolves "follow booted image",
 // and pins it to a digest where it can), pmName the resolved package manager.
-func Containerfile(m *manifest.Manifest, base, pmName string) (string, error) {
+//
+// lock is the name of a lockfile in the build context, or "" for none. When
+// set, the package layer COPYies it and installs from it, which is what makes
+// podman's cache key the resolved package set rather than the spec list: an
+// unchanged upstream yields a byte-identical lockfile, so the COPY hits cache
+// and the whole rebuild is a no-op. The caller is responsible for the lockfile
+// actually existing — see internal/resolve.
+func Containerfile(m *manifest.Manifest, base, pmName, lock string) (string, error) {
 	p, ok := pms[pmName]
 	if !ok {
 		return "", fmt.Errorf("unsupported package manager %q (supported: %s)",
@@ -135,11 +149,26 @@ func Containerfile(m *manifest.Manifest, base, pmName string) (string, error) {
 
 	// Layer 2: the package transaction, on its own so that editing a build
 	// script or the overlay does not invalidate it.
+	useLock := lock != "" && p.installLock != nil
 	if len(m.Packages) > 0 {
+		const lockDst = "/run/remora"
+		if useLock {
+			b.WriteString("# Lockfile: the resolved package set. Its checksum is this layer's\n")
+			b.WriteString("# cache key, so an unchanged resolution rebuilds to the same digest.\n")
+			fmt.Fprintf(&b, "COPY %s %s/%s\n\n", lock, lockDst, lock)
+		}
 		mounts := append([]string{tmpMount}, p.cacheMounts...)
 		writeRun(&b, "Packages (manifest)", mounts, func(s *strings.Builder) {
-			s.WriteString(p.install(m.Packages) + "\n")
+			if useLock {
+				s.WriteString(p.installLock(lockDst+"/"+lock) + "\n")
+			} else {
+				s.WriteString(p.install(m.Packages) + "\n")
+			}
 			scrub := append(append([]string{}, p.scrub...), commonScrub...)
+			if useLock {
+				// The lockfile is build input, not image content.
+				scrub = append([]string{lockDst}, scrub...)
+			}
 			s.WriteString("\n# Scrub build-varying state so identical inputs yield an identical digest.\n")
 			s.WriteString("rm -rf " + strings.Join(scrub, " ") + "\n")
 		})

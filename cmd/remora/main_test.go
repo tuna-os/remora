@@ -1,10 +1,12 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/tuna-os/remora/internal/manifest"
+	"github.com/tuna-os/remora/internal/resolve"
 )
 
 // Contract tests for the CLI dispatcher run() in main.go.
@@ -135,3 +137,48 @@ func TestResolvePMExplicitWins(t *testing.T) {
 		t.Errorf("got %q, want apt", got)
 	}
 }
+
+// resolveLock must never leave a lockfile behind on any path that returns "".
+// A surviving lockfile would keep pinning an old package set forever once the
+// resolver stopped being available — the Containerfile would stop COPYing it,
+// but a later run that regained the resolver would silently reuse it.
+func TestResolveLockClearsStaleLockfileOnEveryFallback(t *testing.T) {
+	cases := []struct {
+		name string
+		m    *manifest.Manifest
+		pm   string
+	}{
+		{"no packages", &manifest.Manifest{}, "dnf"},
+		{"explicitly disabled", &manifest.Manifest{Packages: []string{"htop"}, Lockfile: boolPtr(false)}, "dnf"},
+		{"package manager has no resolver", &manifest.Manifest{Packages: []string{"htop"}}, "apt"},
+		// dnf with no reachable podman/base: Available() fails, so this
+		// falls back too rather than failing the build.
+		{"resolver unavailable", &manifest.Manifest{Packages: []string{"htop"}}, "dnf"},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		stale := resolve.Path(dir)
+		if err := os.WriteFile(stale, []byte("stale lockfile"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got := resolveLock(dir, c.m, "localhost/definitely-not-a-real-image:missing", c.pm)
+		if got != "" {
+			t.Errorf("%s: expected a fallback to the spec list, got lock %q", c.name, got)
+		}
+		if _, err := os.Stat(stale); !os.IsNotExist(err) {
+			t.Errorf("%s: stale lockfile survived the fallback", c.name)
+		}
+	}
+}
+
+// An explicit `lockfile: false` is the documented escape hatch, so it must
+// win even where the resolver would otherwise be used.
+func TestResolveLockRespectsOptOut(t *testing.T) {
+	dir := t.TempDir()
+	m := &manifest.Manifest{Packages: []string{"htop"}, Lockfile: boolPtr(false)}
+	if got := resolveLock(dir, m, "base@sha256:abc", "dnf"); got != "" {
+		t.Errorf("lockfile: false must force the spec-list path, got %q", got)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }

@@ -16,6 +16,7 @@ import (
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
 	"github.com/tuna-os/remora/internal/manifest"
+	"github.com/tuna-os/remora/internal/resolve"
 	"github.com/tuna-os/remora/internal/shim"
 )
 
@@ -207,7 +208,14 @@ func resolvePM(m *manifest.Manifest, base string) (string, error) {
 }
 
 // regenerate resolves base + package manager and rewrites the build context.
-func regenerate(dir string, m *manifest.Manifest) error {
+//
+// wantLock asks for a lockfile to be resolved as part of this pass. It is
+// false whenever no build follows, because resolution starts a container from
+// the base image — which would pull a multi-gigabyte bootc image as a side
+// effect of a command like `remora generate` or `remora install --no-build`
+// that has no other reason to touch the network. Every build path regenerates
+// first, so the Containerfile is still lockfile-aware by the time it matters.
+func regenerate(dir string, m *manifest.Manifest, wantLock bool) error {
 	base, err := resolveBase(dir, m)
 	if err != nil {
 		return err
@@ -216,12 +224,62 @@ func regenerate(dir string, m *manifest.Manifest) error {
 	if err != nil {
 		return err
 	}
-	if err := factory.WriteContext(dir, m, base, pm); err != nil {
+	lock := ""
+	if wantLock {
+		lock = resolveLock(dir, m, base, pm)
+	} else if err := resolve.Clear(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "remora: could not remove a stale %s: %v\n", resolve.LockFile, err)
+	}
+	if err := factory.WriteContext(dir, m, base, pm, lock); err != nil {
 		return err
 	}
-	fmt.Printf("generated %s/Containerfile (base=%s, pm=%s, %d packages)\n",
-		dir, base, pm, len(m.Packages))
+	how := "spec list"
+	if lock != "" {
+		how = "lockfile"
+	}
+	fmt.Printf("generated %s/Containerfile (base=%s, pm=%s, %d packages, %s)\n",
+		dir, base, pm, len(m.Packages), how)
 	return nil
+}
+
+// resolveLock produces a lockfile pinning the exact package set, and returns
+// its name for the Containerfile to COPY — or "" to fall back to installing
+// from the spec list.
+//
+// Every failure path here is a fallback, not an error. The resolver needs
+// podman, a reachable base image, and package-manager tooling that may simply
+// not be installed; none of that is a reason to refuse to build, since the
+// spec-list path is exactly what remora did before lockfiles existed. What it
+// must never do is leave a stale lockfile in place — that would pin an old
+// package set forever once the resolver stopped being available.
+func resolveLock(dir string, m *manifest.Manifest, base, pm string) string {
+	fallback := func(format string, args ...any) string {
+		if format != "" {
+			fmt.Fprintf(os.Stderr, "remora: "+format+"\n", args...)
+		}
+		if err := resolve.Clear(dir); err != nil {
+			fmt.Fprintf(os.Stderr, "remora: could not remove a stale %s: %v\n", resolve.LockFile, err)
+		}
+		return ""
+	}
+
+	if len(m.Packages) == 0 {
+		return fallback("")
+	}
+	if m.Lockfile != nil && !*m.Lockfile {
+		return fallback("")
+	}
+	r, ok := resolve.For(pm)
+	if !ok {
+		return fallback("")
+	}
+	if !r.Available(base) {
+		return fallback("%s is unavailable in %s; installing from the package list instead", r.Name(), base)
+	}
+	if err := r.Resolve(base, dir, m.Packages); err != nil {
+		return fallback("%s failed (%v); installing from the package list instead", r.Name(), err)
+	}
+	return resolve.LockFile
 }
 
 // exePath is the absolute path of the running remora binary, for the units
@@ -247,7 +305,7 @@ func cmdInit(dir string) error {
 	} else if err != nil {
 		return err
 	}
-	if err := regenerate(dir, m); err != nil {
+	if err := regenerate(dir, m, false); err != nil {
 		return err
 	}
 	if err := factory.InstallUnits(m, dir, "/", exePath(), func() error {
@@ -295,7 +353,7 @@ func cmdModify(dir string, add, remove []string, noBuild bool) error {
 	if err := m.Save(dir); err != nil {
 		return err
 	}
-	if err := regenerate(dir, m); err != nil {
+	if err := regenerate(dir, m, !noBuild); err != nil {
 		return err
 	}
 	if noBuild {
@@ -325,7 +383,7 @@ func cmdBuild(dir string, build bool) error {
 	if err != nil {
 		return err
 	}
-	if err := regenerate(dir, m); err != nil {
+	if err := regenerate(dir, m, build); err != nil {
 		return err
 	}
 	if !build {
@@ -454,11 +512,16 @@ func cmdUpgrade(dir string, noBuild bool) error {
 		}
 		fmt.Printf("base image updated:\n  from %s\n  to   %s\n", old, updated)
 	}
+	// Regenerate even with --no-build. The pin just moved, so the
+	// Containerfile's FROM is now stale, and the quadlet's ExecStartPre runs
+	// exactly this command immediately before building — leaving the context
+	// unregenerated would rebuild the old base forever. --no-build means
+	// "do not start the build service", not "leave the context inconsistent".
+	if err := regenerate(dir, m, true); err != nil {
+		return err
+	}
 	if noBuild {
 		return nil
-	}
-	if err := regenerate(dir, m); err != nil {
-		return err
 	}
 	return startBuild()
 }
@@ -486,12 +549,14 @@ func cmdRebase(dir string, args []string, noBuild bool) error {
 		return err
 	}
 	fmt.Println("base image set to", pinned)
+	// As in cmdUpgrade: the base changed, so the context must be rewritten
+	// whether or not a build follows.
+	if err := regenerate(dir, m, true); err != nil {
+		return err
+	}
 	if noBuild {
 		fmt.Println("run `remora build` to apply")
 		return nil
-	}
-	if err := regenerate(dir, m); err != nil {
-		return err
 	}
 	return startBuild()
 }

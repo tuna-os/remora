@@ -38,6 +38,13 @@ type Manifest struct {
 	// Schedule is the systemd OnCalendar expression for automatic rebuilds.
 	// Defaults to daily at 04:00.
 	Schedule string `yaml:"schedule,omitempty"`
+	// Lockfile opts out of resolving packages to a lockfile before
+	// building. Unset means "use a lockfile when the package manager has a
+	// resolver and it is available"; false forces installing from the
+	// package list. There is no reason to set it true — that is already the
+	// default where it can work — but it exists as an escape hatch for when
+	// resolution misbehaves against a particular base.
+	Lockfile *bool `yaml:"lockfile,omitempty"`
 }
 
 // Path returns the manifest path inside dir.

@@ -55,6 +55,21 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke the lockfile invariants without a container runtime
+        run: |
+          D=$(mktemp -d)
+          printf 'package_manager: dnf\npackages: [htop]\n' > "$D/remora.yaml"
+          printf 'quay.io/fedora/fedora-bootc@sha256:%064d\n' 0 > "$D/base"
+          # A lockfile left by an earlier build must never outlive the
+          # resolver: it would pin an old package set indefinitely, and the
+          # Containerfile would COPY a file generation did not vouch for.
+          echo stale > "$D/remora.lock.yaml"
+          ./remora generate --dir "$D"
+          test ! -e "$D/remora.lock.yaml"
+          ! grep -q 'remora.lock.yaml' "$D/Containerfile"
+          # Without a resolver the build still installs from the spec list.
+          grep -q 'dnf -y install' "$D/Containerfile"
+
   required-checks:
     if: always()
     needs: [test]

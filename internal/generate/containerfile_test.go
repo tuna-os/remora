@@ -18,7 +18,7 @@ func TestContainerfilePerPM(t *testing.T) {
 		"apk":     {"apk add --no-interactive"},
 	}
 	for pm, wants := range cases {
-		out, err := Containerfile(m, "ghcr.io/tuna-os/yellowfin:gnome", pm)
+		out, err := Containerfile(m, "ghcr.io/tuna-os/yellowfin:gnome", pm, "")
 		if err != nil {
 			t.Fatalf("%s: %v", pm, err)
 		}
@@ -38,7 +38,7 @@ func TestContainerfilePerPM(t *testing.T) {
 }
 
 func TestContainerfileUnsupportedPM(t *testing.T) {
-	if _, err := Containerfile(&manifest.Manifest{}, "x", "nix"); err == nil {
+	if _, err := Containerfile(&manifest.Manifest{}, "x", "nix", ""); err == nil {
 		t.Fatal("expected error for unsupported package manager")
 	}
 }
@@ -48,7 +48,7 @@ func TestContainerfileExtraRunOrdering(t *testing.T) {
 		Packages: []string{"tailscale"},
 		ExtraRun: []string{"dnf config-manager addrepo --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo"},
 	}
-	out, err := Containerfile(m, "quay.io/fedora/fedora-bootc:latest", "dnf")
+	out, err := Containerfile(m, "quay.io/fedora/fedora-bootc:latest", "dnf", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestContainerfileExtraRunOrdering(t *testing.T) {
 }
 
 func TestContainerfileNoPackages(t *testing.T) {
-	out, err := Containerfile(&manifest.Manifest{}, "base:latest", "apt")
+	out, err := Containerfile(&manifest.Manifest{}, "base:latest", "apt", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestContainerfileLayerSplit(t *testing.T) {
 		Packages: []string{"htop"},
 		ExtraRun: []string{"echo repo-setup"},
 	}
-	cf, err := Containerfile(m, "base@sha256:abc", "dnf")
+	cf, err := Containerfile(m, "base@sha256:abc", "dnf", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,11 +104,11 @@ func TestContainerfileLayerSplit(t *testing.T) {
 func TestContainerfileDeterministic(t *testing.T) {
 	m := &manifest.Manifest{Packages: []string{"htop", "vim"}}
 	for _, pm := range SupportedPMs() {
-		a, err := Containerfile(m, "base@sha256:abc", pm)
+		a, err := Containerfile(m, "base@sha256:abc", pm, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := Containerfile(m, "base@sha256:abc", pm)
+		b, err := Containerfile(m, "base@sha256:abc", pm, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestContainerfileDeterministic(t *testing.T) {
 func TestContainerfileScrubsVaryingState(t *testing.T) {
 	m := &manifest.Manifest{Packages: []string{"htop"}}
 	for _, pm := range SupportedPMs() {
-		cf, err := Containerfile(m, "base@sha256:abc", pm)
+		cf, err := Containerfile(m, "base@sha256:abc", pm, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +138,7 @@ func TestContainerfileScrubsVaryingState(t *testing.T) {
 
 // With no packages the transaction layer is omitted entirely.
 func TestContainerfileNoPackagesOmitsLayer(t *testing.T) {
-	cf, err := Containerfile(&manifest.Manifest{}, "base@sha256:abc", "dnf")
+	cf, err := Containerfile(&manifest.Manifest{}, "base@sha256:abc", "dnf", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,5 +147,71 @@ func TestContainerfileNoPackagesOmitsLayer(t *testing.T) {
 	}
 	if got := strings.Count(cf, "<<'REMORA_EOF'"); got != 2 {
 		t.Errorf("want 2 layers without packages, got %d", got)
+	}
+}
+
+// With a lockfile the package layer installs from it and never from the spec
+// list — installing both would double-resolve and defeat the cache key.
+func TestContainerfileLockfileInstall(t *testing.T) {
+	m := &manifest.Manifest{Packages: []string{"htop", "vim"}}
+	cf, err := Containerfile(m, "base@sha256:abc", "dnf", "remora.lock.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cf, "COPY remora.lock.yaml /run/remora/remora.lock.yaml") {
+		t.Error("lockfile must be COPYied into the build so podman keys the layer on it")
+	}
+	if !strings.Contains(cf, "dnf5 manifest install --assumeyes --manifest /run/remora/remora.lock.yaml") {
+		t.Error("missing lockfile install command")
+	}
+	if strings.Contains(cf, "dnf -y install") {
+		t.Error("must not also install from the spec list when a lockfile is used")
+	}
+	// The COPY must precede the RUN that consumes it.
+	if strings.Index(cf, "COPY remora.lock.yaml") > strings.Index(cf, "manifest install") {
+		t.Error("COPY must come before the install that reads it")
+	}
+	// The lockfile is build input, not image content.
+	if !strings.Contains(cf, "rm -rf /run/remora ") {
+		t.Error("lockfile must be scrubbed from the image")
+	}
+}
+
+// A package manager with no resolver must ignore the lockfile argument
+// entirely rather than emitting a COPY for a file that will not exist.
+func TestContainerfileLockfileIgnoredWithoutResolver(t *testing.T) {
+	m := &manifest.Manifest{Packages: []string{"htop"}}
+	for _, pmName := range []string{"apt", "zypper", "pacman", "portage", "apk"} {
+		cf, err := Containerfile(m, "base@sha256:abc", pmName, "remora.lock.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(cf, "remora.lock.yaml") {
+			t.Errorf("%s has no resolver but referenced a lockfile", pmName)
+		}
+		if !strings.Contains(cf, "htop") {
+			t.Errorf("%s must fall back to installing from the spec list", pmName)
+		}
+	}
+}
+
+// An empty package list emits no transaction layer at all, lockfile or not.
+func TestContainerfileLockfileNoPackages(t *testing.T) {
+	cf, err := Containerfile(&manifest.Manifest{}, "base@sha256:abc", "dnf", "remora.lock.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(cf, "remora.lock.yaml") {
+		t.Error("no packages means no lockfile COPY")
+	}
+}
+
+// Determinism has to hold on the lockfile path too — it is the whole point.
+func TestContainerfileLockfileDeterministic(t *testing.T) {
+	m := &manifest.Manifest{Packages: []string{"htop", "vim"}}
+	a, _ := Containerfile(m, "base@sha256:abc", "dnf", "remora.lock.yaml")
+	b, _ := Containerfile(m, "base@sha256:abc", "dnf", "remora.lock.yaml")
+	if a != b {
+		t.Error("lockfile rendering is not deterministic")
 	}
 }

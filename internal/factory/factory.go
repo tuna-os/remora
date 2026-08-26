@@ -32,9 +32,10 @@ const (
 )
 
 // WriteContext (re)generates the build context in dir: Containerfile plus
-// the build_files/ and system_files/ skeletons if missing.
-func WriteContext(dir string, m *manifest.Manifest, base, pmName string) error {
-	cf, err := generate.Containerfile(m, base, pmName)
+// the build_files/ and system_files/ skeletons if missing. lock is the name
+// of a lockfile already written into dir, or "" when resolution did not run.
+func WriteContext(dir string, m *manifest.Manifest, base, pmName, lock string) error {
+	cf, err := generate.Containerfile(m, base, pmName, lock)
 	if err != nil {
 		return err
 	}
