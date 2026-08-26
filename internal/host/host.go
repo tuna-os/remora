@@ -200,26 +200,40 @@ func LocalDigest(ref string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// DetectPMInImage probes the base image itself for its package manager,
-// rather than inferring it from the host. The two only agree when the base
-// image is the booted image; an explicit `base:` in the manifest can be any
-// distribution at all.
-func DetectPMInImage(image string) (string, error) {
-	const probe = `. /etc/os-release 2>/dev/null || true
+// imageProbe is the script run inside the base image. It reports the first
+// package-manager binary on PATH and the os-release ID, which is exactly the
+// pair detectPM needs — the same contract used for the host, sourced from
+// the image instead.
+const imageProbe = `. /etc/os-release 2>/dev/null || true
 for b in dnf5 dnf zypper pacman apt-get emerge apk; do
   command -v "$b" >/dev/null 2>&1 && { echo "bin=$b"; break; }
 done
 echo "id=${ID:-}"`
-	out, err := exec.Command("podman", "run", "--rm", "--entrypoint", "", image, "sh", "-c", probe).Output()
+
+// DetectPMInImage probes the base image itself for its package manager,
+// rather than inferring it from the host. The two only agree when the base
+// image is the booted image; an explicit `base:` in the manifest can be any
+// distribution at all, so asking the host would happily generate a
+// Containerfile that runs dnf inside an apt image.
+func DetectPMInImage(image string) (string, error) {
+	out, err := exec.Command("podman", "run", "--rm", "--entrypoint", "", image, "sh", "-c", imageProbe).Output()
 	if err != nil {
 		return "", fmt.Errorf("probing %s for its package manager: %w", image, err)
 	}
+	return parseImageProbe(out)
+}
+
+// parseImageProbe turns imageProbe's output into a package-manager name.
+// Split out from DetectPMInImage so the classification is testable without
+// a container runtime.
+func parseImageProbe(out []byte) (string, error) {
 	var bin, osID string
 	for _, line := range strings.Split(string(out), "\n") {
-		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "bin="); ok {
+		line = strings.TrimSpace(line)
+		if after, ok := strings.CutPrefix(line, "bin="); ok {
 			bin = after
 		}
-		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "id="); ok {
+		if after, ok := strings.CutPrefix(line, "id="); ok {
 			osID = strings.Trim(after, `"`)
 		}
 	}

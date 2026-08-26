@@ -1,6 +1,9 @@
 package host
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseBootedImage(t *testing.T) {
 	j := []byte(`{"status":{"booted":{"image":{"image":{"image":"ghcr.io/tuna-os/yellowfin:gnome"}}}}}`)
@@ -172,5 +175,53 @@ func TestParseStagedOrBootedDigest(t *testing.T) {
 func TestParseStagedOrBootedDigestBadJSON(t *testing.T) {
 	if _, err := parseStagedOrBootedDigest([]byte("not json")); err == nil {
 		t.Fatal("expected a parse error")
+	}
+}
+
+// The whole point of probing the image is that the base need not match the
+// host: a dnf host layering onto an apt base must render apt-get, not dnf.
+// These cases are the cross-family combinations issue #18 calls out.
+func TestParseImageProbeCrossFamily(t *testing.T) {
+	cases := []struct {
+		name  string
+		probe string
+		want  string
+	}{
+		{"debian base", "bin=apt-get\nid=debian\n", "apt"},
+		{"ubuntu base", "bin=apt-get\nid=ubuntu\n", "apt"},
+		{"fedora base", "bin=dnf5\nid=fedora\n", "dnf"},
+		{"arch base", "bin=pacman\nid=arch\n", "pacman"},
+		{"opensuse base", "bin=zypper\nid=opensuse-tumbleweed\n", "zypper"},
+		{"gentoo base", "bin=emerge\nid=gentoo\n", "portage"},
+		{"alpine base", "bin=apk\nid=alpine\n", "apk"},
+		// A binary present but an unrecognized ID still classifies: the
+		// binary is the stronger signal, and derivatives are common.
+		{"unknown derivative with apt", "bin=apt-get\nid=somederivative\n", "apt"},
+		// No binary found, but os-release still identifies the family.
+		{"no binary, known id", "id=fedora\n", "dnf"},
+		// Trailing whitespace and CRLF must not defeat the prefix match.
+		{"crlf output", "bin=pacman\r\nid=arch\r\n", "pacman"},
+	}
+	for _, c := range cases {
+		got, err := parseImageProbe([]byte(c.probe))
+		if err != nil {
+			t.Errorf("%s: %v", c.name, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// Neither a binary nor a recognizable ID must be a clear error pointing at
+// the manifest escape hatch, not a silent wrong guess.
+func TestParseImageProbeUnknown(t *testing.T) {
+	_, err := parseImageProbe([]byte("id=\n"))
+	if err == nil {
+		t.Fatal("expected an error when nothing identifies the package manager")
+	}
+	if !strings.Contains(err.Error(), "package_manager") {
+		t.Errorf("error should point at the manifest override, got: %v", err)
 	}
 }
