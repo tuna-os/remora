@@ -126,6 +126,7 @@ extra_run:                # verbatim shell, runs BEFORE package install —
   - dnf config-manager addrepo --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo
 image: localhost/remora:latest
 schedule: "*-*-* 04:00:00"
+lockfile: true            # omit for auto; false forces installing from the list above
 ```
 
 - **`build_files/*.sh`** run in lexical order at the end of the build —
@@ -134,6 +135,34 @@ schedule: "*-*-* 04:00:00"
   would go; remora doesn't wrap bst, it just gives it a home).
 - **`system_files/`** is copied onto `/` verbatim (e.g.
   `system_files/etc/sysctl.d/99-tuning.conf`).
+- **`lockfile`** opts out of lockfile resolution (see below). Leave it unset;
+  it exists for when resolution misbehaves against a particular base.
+
+### Lockfiles
+
+Where the base image's package manager can resolve a package list to an exact
+set, remora does that first and writes `remora.lock.yaml` into the build
+context, which the Containerfile `COPY`s and installs from.
+
+This is what makes an unchanged rebuild free. Without it the build layer's
+cache key is the literal string `dnf -y install htop vim`, which never changes
+— podman cannot tell whether today's `htop` resolves to the same package as
+yesterday's. With a lockfile the cache key is the *resolved set*: nothing
+changed upstream ⇒ byte-identical lockfile ⇒ the `COPY` hits cache ⇒ identical
+image digest ⇒ `remora apply` skips the rebase entirely.
+
+Today this is implemented for **dnf**, using
+[`dnf5 manifest`](https://github.com/rpm-software-management/dnf5)
+(`dnf5-plugin-manifest`). Resolution runs in a container started from the base
+image, never on the host — the base image's repositories and installed set are
+what the build will actually see.
+
+It is entirely best-effort. If podman is missing, the plugin is not installed
+in the base image, or resolution fails, remora falls back to installing from
+the package list exactly as it did before lockfiles existed, and says so on
+stderr. Package managers without a resolver always use that path. Resolution
+only runs when a build follows, so `remora generate` and
+`remora install --no-build` never pull the base image just to probe it.
 
 ## Package-manager shims
 
