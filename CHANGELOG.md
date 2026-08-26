@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/tuna-os/remora/compare/v0.3.0...v0.4.0) (2026-08-26)
+
+
+### Features
+
+* resolve packages to a lockfile so unchanged rebuilds are free ([#34](https://github.com/tuna-os/remora/issues/34)) ([4634ee0](https://github.com/tuna-os/remora/commit/4634ee0f8610c3517ccf3ea1e5293143339d4a3b))
+
+
+### Documentation
+
+* **roadmap:** correct why the TunaOS image pin matters ([#32](https://github.com/tuna-os/remora/issues/32)) ([c671951](https://github.com/tuna-os/remora/commit/c67195198c123bae7593378079765877b3d00c5d))
+
 ## [0.3.0](https://github.com/tuna-os/remora/compare/v0.2.0...v0.3.0) (2026-08-26)
 
 
