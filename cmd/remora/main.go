@@ -173,7 +173,14 @@ func resolveBase(dir string, m *manifest.Manifest) (string, error) {
 	}
 	pinned, err := host.PinBase(want)
 	if err != nil {
-		return "", err
+		// Pinning is an optimization for reproducibility, not a
+		// precondition for building. A missing skopeo or an unreachable
+		// registry degrades to the unpinned ref — which is what remora
+		// did before pins existed — rather than making `remora generate`
+		// unusable offline. `remora upgrade`, whose whole job is moving
+		// the pin, still fails loudly.
+		fmt.Fprintf(os.Stderr, "remora: could not pin %s to a digest (%v); building from the unpinned ref\n", want, err)
+		return want, nil
 	}
 	if err := manifest.SaveBase(dir, pinned); err != nil {
 		return "", err
