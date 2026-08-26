@@ -137,3 +137,32 @@ func (m *Manifest) Validate() error {
 	}
 	return nil
 }
+
+// BasePath returns the path of the pinned-base file inside dir. The file
+// holds the fully resolved base ref, digest included ("image@sha256:...").
+//
+// The manifest's Base field is what the user asked for ("follow the booted
+// image", or a tag like quay.io/fedora/fedora-bootc:42); the pin file is
+// what remora actually builds FROM. Keeping them apart is what makes a
+// rebuild reproducible: a tag moves under you, a digest does not, so two
+// builds a week apart produce the same image unless `remora upgrade` moved
+// the pin on purpose.
+func BasePath(dir string) string { return filepath.Join(dir, "base") }
+
+// LoadBase reads the pinned base ref from dir. It returns "" when no pin
+// has been written yet.
+func LoadBase(dir string) string {
+	data, err := os.ReadFile(BasePath(dir))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// SaveBase writes the pinned base ref to dir.
+func SaveBase(dir, ref string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(BasePath(dir), []byte(ref+"\n"), 0o644)
+}

@@ -12,13 +12,14 @@ import (
 
 func TestQuadletContent(t *testing.T) {
 	m := &manifest.Manifest{}
-	q := Quadlet(m, "/etc/remora")
+	q := Quadlet(m, "/etc/remora", "/usr/bin/remora")
 	for _, w := range []string{
 		"ImageTag=localhost/remora:latest",
 		"Pull=newer",
 		"SetWorkingDirectory=/etc/remora",
-		"bootc switch --quiet --transport=containers-storage localhost/remora:latest",
-		"bootc update --quiet",
+		"PodmanArgs=--timestamp 0",
+		"ExecStartPre=-/usr/bin/remora --dir /etc/remora upgrade --no-build",
+		"ExecStartPost=/usr/bin/remora --dir /etc/remora apply",
 		"podman image prune",
 	} {
 		if !strings.Contains(q, w) {
@@ -29,7 +30,7 @@ func TestQuadletContent(t *testing.T) {
 
 func TestQuadletCustomImage(t *testing.T) {
 	m := &manifest.Manifest{Image: "localhost/myhost:latest"}
-	q := Quadlet(m, "/etc/remora")
+	q := Quadlet(m, "/etc/remora", "/usr/bin/remora")
 	if !strings.Contains(q, "ImageTag=localhost/myhost:latest") {
 		t.Fatal("custom image tag not respected")
 	}
@@ -104,6 +105,7 @@ func TestInstallUupdHook(t *testing.T) {
 func TestInstallUnits(t *testing.T) {
 	root := t.TempDir()
 	dir := "/srv/remora"
+	exe := "/usr/bin/remora"
 	m := &manifest.Manifest{}
 	// /etc/systemd/system exists on real systemd hosts but not under a temp
 	// root; InstallUnits only creates the quadlet dir (its own tree).
@@ -111,7 +113,7 @@ func TestInstallUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	var reloaded int
-	err := InstallUnits(m, dir, root, func() error {
+	err := InstallUnits(m, dir, root, exe, func() error {
 		reloaded++
 		return nil
 	})
@@ -123,8 +125,8 @@ func TestInstallUnits(t *testing.T) {
 	}
 	quadletPath := filepath.Join(root, QuadletPath)
 	timerPath := filepath.Join(root, TimerPath)
-	if got := readFile(t, quadletPath); got != Quadlet(m, dir) {
-		t.Errorf("quadlet content mismatch:\n got %q\nwant %q", got, Quadlet(m, dir))
+	if got := readFile(t, quadletPath); got != Quadlet(m, dir, exe) {
+		t.Errorf("quadlet content mismatch:\n got %q\nwant %q", got, Quadlet(m, dir, exe))
 	}
 	if got := readFile(t, timerPath); got != Timer(m) {
 		t.Errorf("timer content mismatch:\n got %q\nwant %q", got, Timer(m))
@@ -142,7 +144,7 @@ func TestInstallUnitsReloadErrorPropagates(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := errors.New("daemon-reload failed")
-	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, func() error {
+	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, "/usr/bin/remora", func() error {
 		return want
 	})
 	if !errors.Is(err, want) {
@@ -162,7 +164,7 @@ func TestInstallUnitsFailureStopsBeforeReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	reloaded := false
-	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, func() error {
+	err := InstallUnits(&manifest.Manifest{}, "/srv/remora", root, "/usr/bin/remora", func() error {
 		reloaded = true
 		return nil
 	})

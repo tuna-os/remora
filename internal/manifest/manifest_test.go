@@ -1,6 +1,8 @@
 package manifest
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -58,5 +60,37 @@ func TestDefaults(t *testing.T) {
 	}
 	if m.OnCalendar() != "*-*-* 04:00:00" {
 		t.Fatal("wrong default schedule:", m.OnCalendar())
+	}
+}
+
+func TestBasePinRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	if got := LoadBase(dir); got != "" {
+		t.Fatalf("unwritten pin should read empty, got %q", got)
+	}
+	const ref = "quay.io/fedora/fedora-bootc@sha256:abc"
+	if err := SaveBase(dir, ref); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadBase(dir); got != ref {
+		t.Errorf("LoadBase = %q, want %q", got, ref)
+	}
+	// The pin is a plain one-line file, readable and editable by hand.
+	data, err := os.ReadFile(BasePath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != ref+"\n" {
+		t.Errorf("pin file = %q, want a single trailing newline", string(data))
+	}
+}
+
+func TestSaveBaseCreatesDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "remora")
+	if err := SaveBase(dir, "img@sha256:abc"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadBase(dir); got != "img@sha256:abc" {
+		t.Errorf("got %q", got)
 	}
 }
