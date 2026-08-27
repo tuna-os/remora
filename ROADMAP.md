@@ -53,7 +53,7 @@ is the same on every TunaOS variant.
 |----------|------|----------|--------|
 | P0 | Bump `REMORA_VERSION` in tunaOS `build_scripts/install-remora.sh` to v0.3.0 — images ship v0.2.0, whose quadlet rebases to a bare tag and can silently fail to stage a rebuild | tunaOS#2083 | 🔴 Open |
 | P1 | Runtime units drift from the manifest after initialization | #17 | 🟡 Open |
-| P2 | Per-package-manager lockfile resolver, so a rebuild's cache key is the resolved package set rather than the spec list | — | ⬜ Not started |
+| ~~P2~~ | ~~Per-package-manager lockfile resolver, so a rebuild's cache key is the resolved package set rather than the spec list~~ — implemented for DNF via `dnf5 manifest` | #34 | ✅ Done |
 | ~~P0~~ | ~~Cut a release carrying the 08-14→08-23 fixes~~ — shipped in v0.3.0 | #21 | ✅ Done |
 | ~~P1~~ | ~~Explicit base images use the host package-manager contract~~ — the base image is now probed directly | #18 | ✅ Done |
 | ~~P2~~ | ~~Release-cadence policy~~ — releases are cut by release-please from conventional commits; cadence is "whenever the release PR is merged" | #21 | ✅ Done |
