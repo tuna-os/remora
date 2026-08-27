@@ -88,7 +88,11 @@ func binaryExists(name string) bool {
 }
 
 func osReleaseID() string {
-	data, err := os.ReadFile("/etc/os-release")
+	return osReleaseIDFromPath("/etc/os-release")
+}
+
+func osReleaseIDFromPath(path string) string {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
