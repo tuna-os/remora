@@ -4,7 +4,7 @@ Thank you for helping improve `remora`! This guide covers local setup, validatio
 
 ## Development Requirements
 
-- **Go**: 1.22+ (as specified in `go.mod`)
+- **Go**: The version declared in `go.mod`
 - **just**: Command runner (optional, but recommended)
 - **git**: For version control and signing commits
 
