@@ -243,4 +243,3 @@ func TestOSReleaseIDFromPath(t *testing.T) {
 		t.Errorf("osReleaseIDFromPath(%q) = %q, want empty string for missing file", nonExistent, got)
 	}
 }
-
