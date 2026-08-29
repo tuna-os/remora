@@ -240,9 +240,7 @@ func parseImageProbe(out []byte) (string, error) {
 	return detectPM(osID, func(name string) bool { return name == bin })
 }
 
-// BootcSwitch rebases the system onto ref. ref should carry a digest so that
-// bootc sees a distinct target even when the tag is unchanged.
-func BootcSwitch(ref string, apply bool, softReboot string) error {
+func buildBootcSwitchArgs(ref string, apply bool, softReboot string) []string {
 	args := []string{"switch", "--transport=containers-storage"}
 	if apply {
 		args = append(args, "--apply")
@@ -251,6 +249,13 @@ func BootcSwitch(ref string, apply bool, softReboot string) error {
 		args = append(args, "--soft-reboot="+softReboot)
 	}
 	args = append(args, ref)
+	return args
+}
+
+// BootcSwitch rebases the system onto ref. ref should carry a digest so that
+// bootc sees a distinct target even when the tag is unchanged.
+func BootcSwitch(ref string, apply bool, softReboot string) error {
+	args := buildBootcSwitchArgs(ref, apply, softReboot)
 	cmd := exec.Command("bootc", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
