@@ -269,4 +269,3 @@ func TestBuildBootcSwitchArgs(t *testing.T) {
 		}
 	}
 }
-

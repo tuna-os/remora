@@ -246,7 +246,7 @@ func buildBootcSwitchArgs(ref string, apply bool, softReboot string) []string {
 		args = append(args, "--apply")
 	}
 	if softReboot != "" {
-		args = append(args, "--soft-reboot=" + softReboot)
+		args = append(args, "--soft-reboot="+softReboot)
 	}
 	args = append(args, ref)
 	return args
