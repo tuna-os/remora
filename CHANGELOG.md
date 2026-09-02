@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/tuna-os/remora/compare/v0.4.0...v0.4.1) (2026-09-02)
+
+
+### Documentation
+
+* **roadmap:** plan the post-v0.4.0 period ([#58](https://github.com/tuna-os/remora/issues/58)) ([48bc05f](https://github.com/tuna-os/remora/commit/48bc05fd94dc7bdfeb72b05dbcfefe7d6b8e15f7))
+
 ## [0.4.0](https://github.com/tuna-os/remora/compare/v0.3.0...v0.4.0) (2026-08-26)
 
 
