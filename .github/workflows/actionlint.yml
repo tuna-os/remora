@@ -24,6 +24,15 @@ jobs:
       - name: Validate GitHub Actions workflows
         # Existing repositories own their shellcheck policy separately. This
         # keeps actionlint focused on workflow syntax and expressions.
-        uses: docker://rhysd/actionlint:latest
+        #
+        # Pinned to a digest rather than :latest so a lint result is
+        # reproducible from the commit alone and an upstream image
+        # replacement cannot change CI behavior without a reviewed change
+        # here. To upgrade: resolve the new tag's index digest with
+        #   docker buildx imagetools inspect rhysd/actionlint:<version>
+        # and update both the digest and the version comment below.
+        #
+        # actionlint v1.7.12 (:latest resolved to this digest on 2026-09-02)
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
           args: -color -ignore shellcheck
