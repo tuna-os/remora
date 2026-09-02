@@ -17,31 +17,14 @@ is the same on every TunaOS variant.
 
 ## Current Status
 
-- **Latest release**: v0.3.0 (2026-08-26) — standalone Linux binaries for
+- **Latest release**: v0.4.0 (2026-08-26) — standalone Linux binaries for
   amd64/arm64 + `checksums.txt`, cut automatically by release-please and
-  published via goreleaser. Carries digest-pinned bases, reproducible layers
-  and no-op rebuilds (#27), plus every fix stranded since v0.2.0: the
-  install-snippet checksum hardening (#19/#20), installation docs, ROADMAP,
-  CONTRIBUTING, and the unit-test additions.
-
-  Note: the v0.3.0 release notes list only two entries. The generated
-  changelog classifies conventional-commit subjects, and the stranded fixes
-  landed with a bracket prefix (`[sec-check] fix: ...`), which is not
-  classified. They shipped; they are just absent from the notes. CONTRIBUTING
-  documents the prefix rule so this does not recur.
-- **Preinstalled**: TunaOS images pin `REMORA_VERSION=v0.2.0` via
-  `build_scripts/install-remora.sh` (deliberately no renovate marker — the
-  sha256 check would fail on an unpinned bump). **The pin is now a release
-  behind** — tracked in tuna-os/tunaOS#2083.
-
-  Note: #21 describes the stale pin as leaving images on "the vulnerable
-  install path". That conflates two different things. #19/#20 hardened the
-  README install snippet — the copy-paste instructions for manual installs.
-  tunaOS builds images with its own `build_scripts/install-remora.sh`, which
-  already verifies with `sha256sum --check --strict` under `set -euo
-  pipefail` and was never vulnerable. What the bump actually delivers is the
-  v0.2.0 rebase defect: its quadlet switches to a bare tag, so a rebuild with
-  new content under an unchanged tag can fail to stage.
+  published via goreleaser. Adds the DNF lockfile resolver (#34) on top of the
+  digest-pinned bases, reproducible layers, and no-op rebuilds shipped in
+  v0.3.0 (#27).
+- **Preinstalled**: TunaOS images pin `REMORA_VERSION=v0.4.0` via
+  `build_scripts/install-remora.sh`. The update from v0.2.0 was completed in
+  tuna-os/tunaOS#2083.
 - **Maturity**: active development since 07-11; factory, generate, host,
   manifest, and shim internals covered by unit tests; install snippet
   hardened to fail closed on bad checksums (#19/#20).
@@ -51,9 +34,9 @@ is the same on every TunaOS variant.
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Bump `REMORA_VERSION` in tunaOS `build_scripts/install-remora.sh` to v0.3.0 — images ship v0.2.0, whose quadlet rebases to a bare tag and can silently fail to stage a rebuild | tunaOS#2083 | 🔴 Open |
+| ~~P0~~ | ~~Update `REMORA_VERSION` in tunaOS so images receive the digest-pinned rebase fix~~ — TunaOS now pins v0.4.0 | tunaOS#2083 | ✅ Done |
 | P1 | Runtime units drift from the manifest after initialization | #17 | 🟡 Open |
-| P2 | Per-package-manager lockfile resolver, so a rebuild's cache key is the resolved package set rather than the spec list | — | ⬜ Not started |
+| ~~P2~~ | ~~Per-package-manager lockfile resolver, so a rebuild's cache key is the resolved package set rather than the spec list~~ — implemented for DNF via `dnf5 manifest` | #34 | ✅ Done |
 | ~~P0~~ | ~~Cut a release carrying the 08-14→08-23 fixes~~ — shipped in v0.3.0 | #21 | ✅ Done |
 | ~~P1~~ | ~~Explicit base images use the host package-manager contract~~ — the base image is now probed directly | #18 | ✅ Done |
 | ~~P2~~ | ~~Release-cadence policy~~ — releases are cut by release-please from conventional commits; cadence is "whenever the release PR is merged" | #21 | ✅ Done |
@@ -69,7 +52,7 @@ is the same on every TunaOS variant.
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
 | Cut v0.3.0 with accumulated fixes | hanthor | #21 | ✅ Done |
-| Refresh the TunaOS image pin to v0.3.0 | hanthor | #21 | ⬜ Not started |
+| Refresh the TunaOS image pin | hanthor | tunaOS#2083 | ✅ Done — v0.4.0 |
 | Resolve runtime-units drift (#17) | hanthor | #17 | ⬜ Not started |
 | Define base-image contract (#18) | hanthor | #18 | ✅ Done |
 
