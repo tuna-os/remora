@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,12 +12,17 @@ import (
 
 // Contract tests for the CLI dispatcher run() in main.go.
 //
-// Only side-effect-free paths are exercised here: help/usage output, flag
+// Side-effect-free paths are exercised directly: help/usage output, flag
 // parsing errors, unknown-command rejection, and a read-only `list` against
-// an empty directory. Every subcommand that touches the host (init/install/
-// remove/build/enable/disable/status/shims) writes to /etc or invokes
-// systemctl, which a unit test must not do; those paths are exercised by the
-// smoke test in CI (`go build` + `just check` on a non-bootc host).
+// an empty directory. Subcommands that shell out to bootc/systemctl (status)
+// are exercised against fake binaries on PATH, the same technique
+// internal/host/exec_test.go uses. cmdInit, cmdModify's build path, cmdBuild,
+// cmdShims, cmdUpgrade, and cmdRebase still are not: init/build/upgrade/
+// rebase invoke `systemctl start` for a real build, and shims hardcodes
+// /usr/local/bin — none of that is a unit test's business to touch, and none
+// of it is currently driven by CI's smoke script either (which only calls
+// generate, install --no-build, list, and apply's no-local-image failure
+// path). See the coverage-gap issue for what's still open.
 
 func TestRunEmptyArgsPrintsUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {}} {
@@ -182,3 +188,80 @@ func TestResolveLockRespectsOptOut(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// putOnPath writes an executable stub to a temp dir and prepends it to PATH,
+// the same fake-binary technique internal/host/exec_test.go uses to test
+// exec-backed helpers without touching the real host.
+func putOnPath(t *testing.T, name, script string) string {
+	t.Helper()
+	binDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(binDir, name), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := os.Getenv("PATH")
+	t.Cleanup(func() { os.Setenv("PATH", old) })
+	os.Setenv("PATH", binDir+":"+old)
+	return binDir
+}
+
+// cmdStatus was 0% covered: it is a read-only report (booted image, manifest
+// summary, timer status), but nothing exercised it — not a unit test, and
+// not CI's smoke script, which only drives generate/install/list/apply.
+
+func TestCmdStatusNoManifestReturnsNilWithoutQueryingTheTimer(t *testing.T) {
+	putOnPath(t, "bootc", "#!/bin/sh\nexit 1\n")
+	// No systemctl stub: cmdStatus must return before reaching it, since
+	// manifest.Load fails first on an empty directory.
+	if err := cmdStatus(t.TempDir()); err != nil {
+		t.Fatalf("cmdStatus(empty dir) = %v, want nil", err)
+	}
+}
+
+func TestCmdStatusWithManifestQueriesTheTimer(t *testing.T) {
+	putOnPath(t, "bootc", `#!/bin/sh
+cat <<'EOF'
+{"status":{"booted":{"image":{"image":{"image":"ghcr.io/tuna-os/yellowfin:gnome"}}}}}
+EOF
+`)
+	marker := filepath.Join(t.TempDir(), "systemctl-args")
+	putOnPath(t, "systemctl", `#!/bin/sh
+echo "$@" > `+marker+`
+exit 0
+`)
+
+	dir := t.TempDir()
+	m := &manifest.Manifest{Packages: []string{"htop"}}
+	if err := m.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cmdStatus(dir); err != nil {
+		t.Fatalf("cmdStatus(dir with manifest) = %v, want nil", err)
+	}
+
+	got, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("cmdStatus never invoked systemctl: %v", err)
+	}
+	if !strings.Contains(string(got), "status") || !strings.Contains(string(got), "remora-build.timer") {
+		t.Errorf("systemctl invoked with %q, want it to query remora-build.timer's status", got)
+	}
+}
+
+// cmdStatus's fallback message when bootc itself fails (not a bootc host, or
+// no bootc binary at all) must not turn into an error — status is meant to
+// degrade gracefully, not refuse to run off-target.
+func TestCmdStatusToleratesMissingBootc(t *testing.T) {
+	putOnPath(t, "bootc", "#!/bin/sh\nexit 1\n")
+	putOnPath(t, "systemctl", "#!/bin/sh\nexit 0\n")
+
+	dir := t.TempDir()
+	m := &manifest.Manifest{}
+	if err := m.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cmdStatus(dir); err != nil {
+		t.Fatalf("cmdStatus with a failing bootc = %v, want nil (degrades gracefully)", err)
+	}
+}
