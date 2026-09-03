@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -182,3 +183,16 @@ func TestResolveLockRespectsOptOut(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// exePath is what units call back into (`remora enable` installs a systemd
+// unit that re-execs this path); a relative or empty result would install a
+// unit that stops working the moment the working directory changes.
+func TestExePathReturnsAbsolutePath(t *testing.T) {
+	got := exePath()
+	if got == "" {
+		t.Fatal("exePath returned empty string")
+	}
+	if !filepath.IsAbs(got) {
+		t.Errorf("exePath = %q, want an absolute path", got)
+	}
+}
