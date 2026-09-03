@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/tuna-os/remora/compare/v0.4.1...v0.4.2) (2026-09-03)
+
+
+### Documentation
+
+* add a rollback runbook for a bad remora build ([#62](https://github.com/tuna-os/remora/issues/62)) ([52684a6](https://github.com/tuna-os/remora/commit/52684a64c796819ece832f55a72f193a8b6bb99c))
+
 ## [0.4.1](https://github.com/tuna-os/remora/compare/v0.4.0...v0.4.1) (2026-09-02)
 
 
