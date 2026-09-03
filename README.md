@@ -216,7 +216,20 @@ longer knows how to update you — it sees `containers-storage:localhost/remora:
 and cannot recognize the base image underneath the local layer. Use
 `remora upgrade`, which refreshes the pinned base digest and rebuilds on top
 of it. To go back to a system managed by bootc alone, run
-`bootc rebase <base image>` and `remora disable`.
+`bootc rebase <base image>` and `remora disable` — and, on a host where
+`remora init` detected uupd, also remove
+`/etc/systemd/system/uupd.service.d/10-remora.conf`, because `remora disable`
+only turns off remora's own timer and uupd would otherwise keep pulling the
+rebuild in on its own schedule.
+
+### When a rebuild goes wrong
+
+`bootc rollback` on its own does not stick here: it changes which deployment
+boots, but the next scheduled rebuild builds the same manifest from the same
+pinned base and stages it again. See
+[runbooks/rollback-a-bad-remora-build.md](runbooks/rollback-a-bad-remora-build.md)
+for the full recovery procedure — stop the automation first, then roll back,
+then find and undo the input that broke.
 
 ## Building
 
