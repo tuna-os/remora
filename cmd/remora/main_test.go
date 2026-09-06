@@ -12,11 +12,17 @@ import (
 // Contract tests for the CLI dispatcher run() in main.go.
 //
 // Only side-effect-free paths are exercised here: help/usage output, flag
-// parsing errors, unknown-command rejection, and a read-only `list` against
-// an empty directory. Every subcommand that touches the host (init/install/
-// remove/build/enable/disable/status/shims) writes to /etc or invokes
-// systemctl, which a unit test must not do; those paths are exercised by the
-// smoke test in CI (`go build` + `just check` on a non-bootc host).
+// parsing errors, unknown-command rejection, a read-only `list` against an
+// empty directory, and the argument-validation / missing-manifest branches of
+// status/rebase/upgrade that return before any host call is made.
+//
+// CI's e2e smoke step (.github/workflows/ci.yml) only ever drives
+// generate/install/list/apply — init, shims, the build-triggering branches of
+// modify/build/upgrade/rebase, and enable/disable are covered by neither this
+// file nor that smoke test. Those genuinely write to /etc, /usr/local/bin, or
+// invoke systemctl/podman for real, which neither a unit test nor the current
+// smoke harness should do without refactoring cmdInit/cmdShims to take an
+// injectable root (see the coverage-gap issue this file's history points to).
 
 func TestRunEmptyArgsPrintsUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {}} {
@@ -182,3 +188,59 @@ func TestResolveLockRespectsOptOut(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// cmdStatus never mutates anything — it only reads the manifest and shells
+// out to bootc/systemctl for informational output — so it is safe to call
+// directly in a unit test even without those binaries present. Neither the
+// happy path nor the "not a bootc system" fallback was exercised anywhere
+// (not by a unit test, and not by CI's e2e smoke, which only ever calls
+// generate/install/list/apply): the misleading main_test.go package comment
+// above claims host-touching subcommands are "exercised by the smoke test in
+// CI", which is not true for status/init/shims/upgrade/rebase.
+func TestCmdStatusNoManifest(t *testing.T) {
+	if err := cmdStatus(t.TempDir()); err != nil {
+		t.Fatalf("cmdStatus(<empty dir>) = %v, want nil (missing manifest is reported, not an error)", err)
+	}
+}
+
+func TestCmdStatusWithManifest(t *testing.T) {
+	dir := t.TempDir()
+	m := &manifest.Manifest{Packages: []string{"htop"}}
+	if err := m.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdStatus(dir); err != nil {
+		t.Fatalf("cmdStatus(<dir with manifest>) = %v, want nil", err)
+	}
+}
+
+// cmdRebase must reject a wrong argument count before touching the manifest
+// or the host at all.
+func TestCmdRebaseRequiresExactlyOneArg(t *testing.T) {
+	for _, args := range [][]string{nil, {}, {"a", "b"}} {
+		err := cmdRebase(t.TempDir(), args, false)
+		if err == nil {
+			t.Fatalf("cmdRebase(%v) = nil, want error", args)
+		}
+		if !strings.Contains(err.Error(), "exactly one image ref") {
+			t.Fatalf("cmdRebase(%v) error = %q, want it to mention the arg count", args, err)
+		}
+	}
+}
+
+// With no manifest present, cmdRebase and cmdUpgrade must fail on the load
+// before reaching any host call (skopeo/podman/bootc), which is what keeps
+// this path deterministic without those tools installed.
+func TestCmdRebaseNoManifestFailsBeforeHostCall(t *testing.T) {
+	err := cmdRebase(t.TempDir(), []string{"docker.io/library/debian"}, false)
+	if err == nil {
+		t.Fatal("cmdRebase(<empty dir>, ...) = nil, want error for missing manifest")
+	}
+}
+
+func TestCmdUpgradeNoManifestFailsBeforeHostCall(t *testing.T) {
+	err := cmdUpgrade(t.TempDir(), false)
+	if err == nil {
+		t.Fatal("cmdUpgrade(<empty dir>) = nil, want error for missing manifest")
+	}
+}
