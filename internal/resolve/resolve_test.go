@@ -64,3 +64,49 @@ func TestResolverName(t *testing.T) {
 		t.Error("resolver must have a user-facing name")
 	}
 }
+
+// writeAtomic must produce a readable file with the exact bytes given,
+// whether or not something already sits at path.
+func TestWriteAtomicCreatesFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.yaml")
+	if err := writeAtomic(path, []byte("pinned: true")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "pinned: true" {
+		t.Errorf("content = %q, want %q", got, "pinned: true")
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("temp file survived the rename: %v", err)
+	}
+}
+
+func TestWriteAtomicOverwritesExisting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.yaml")
+	if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeAtomic(path, []byte("fresh")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "fresh" {
+		t.Errorf("content = %q, want %q", got, "fresh")
+	}
+}
+
+// A resolver with no podman on PATH must report itself unavailable rather
+// than let callers hit a "command not found" failure mid-build.
+func TestAvailableFalseWithoutPodman(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	r, _ := For("dnf")
+	if r.Available("base@sha256:abc") {
+		t.Error("Available should be false when podman is not on PATH")
+	}
+}
