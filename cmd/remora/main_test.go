@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -242,5 +243,37 @@ func TestCmdUpgradeNoManifestFailsBeforeHostCall(t *testing.T) {
 	err := cmdUpgrade(t.TempDir(), false)
 	if err == nil {
 		t.Fatal("cmdUpgrade(<empty dir>) = nil, want error for missing manifest")
+	}
+}
+
+// putOnPath writes an executable stub to a temp dir and prepends it to PATH,
+// so cmdStatus's bootc/systemctl calls can be driven explicitly instead of
+// depending on whatever is (or isn't) actually installed on the test host.
+func putOnPath(t *testing.T, name, script string) {
+	t.Helper()
+	binDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(binDir, name), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := os.Getenv("PATH")
+	t.Cleanup(func() { os.Setenv("PATH", old) })
+	os.Setenv("PATH", binDir+":"+old)
+}
+
+// cmdStatus's fallback when bootc itself fails (not a bootc host, or no bootc
+// binary at all) must not turn into an error — status is meant to degrade
+// gracefully, not refuse to run off-target.
+func TestCmdStatusToleratesMissingBootc(t *testing.T) {
+	putOnPath(t, "bootc", "#!/bin/sh\nexit 1\n")
+	putOnPath(t, "systemctl", "#!/bin/sh\nexit 0\n")
+
+	dir := t.TempDir()
+	m := &manifest.Manifest{}
+	if err := m.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cmdStatus(dir); err != nil {
+		t.Fatalf("cmdStatus with a failing bootc = %v, want nil (degrades gracefully)", err)
 	}
 }
