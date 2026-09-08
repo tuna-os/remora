@@ -43,6 +43,23 @@ func names(pm string) []string {
 	return nil
 }
 
+// allNames returns every command remora may own, independent of the package
+// manager selected by the current manifest. This is the reconciliation
+// boundary for shims left by an earlier cross-family rebase.
+func allNames() []string {
+	var all []string
+	seen := make(map[string]bool)
+	for _, pm := range []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} {
+		for _, name := range names(pm) {
+			if !seen[name] {
+				seen[name] = true
+				all = append(all, name)
+			}
+		}
+	}
+	return all
+}
+
 // Script renders the shim for one command of a package-manager family.
 func Script(pm, name string) (string, error) {
 	var dispatch string
@@ -131,12 +148,28 @@ func Install(dir, pm string) ([]string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
+	desired := make(map[string]bool, len(cmds))
+	for _, name := range cmds {
+		desired[name] = true
+		path := filepath.Join(dir, name)
+		if data, err := os.ReadFile(path); err == nil && !isOurs(data) {
+			return nil, fmt.Errorf("%s exists and is not a remora shim; not overwriting", path)
+		}
+	}
+	for _, name := range allNames() {
+		if desired[name] {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if data, err := os.ReadFile(path); err == nil && isOurs(data) {
+			if err := os.Remove(path); err != nil {
+				return nil, err
+			}
+		}
+	}
 	var installed []string
 	for _, name := range cmds {
 		path := filepath.Join(dir, name)
-		if data, err := os.ReadFile(path); err == nil && !isOurs(data) {
-			return installed, fmt.Errorf("%s exists and is not a remora shim; not overwriting", path)
-		}
 		script, err := Script(pm, name)
 		if err != nil {
 			return installed, err
@@ -149,11 +182,12 @@ func Install(dir, pm string) ([]string, error) {
 	return installed, nil
 }
 
-// Remove deletes remora-generated shims for pm from dir. Files that aren't
-// remora shims are left alone.
-func Remove(dir, pm string) ([]string, error) {
+// Remove deletes every remora-generated shim from dir, including commands
+// left by a package-manager family used before a rebase. Foreign files are
+// left alone.
+func Remove(dir string) ([]string, error) {
 	var removed []string
-	for _, name := range names(pm) {
+	for _, name := range allNames() {
 		path := filepath.Join(dir, name)
 		data, err := os.ReadFile(path)
 		if err != nil || !isOurs(data) {
