@@ -102,6 +102,7 @@ images that ship it.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
+| Decoupled provider architecture & package-less base image support (sysext/confext backends) | tuna-os | #86 | ⬜ Proposed / In planning |
 | Build-verified support for a second package-manager family, resolver included | tuna-os | #56 | ⬜ Not started |
 | Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on a decision — tunaOS#1174 is closed, so this row has no live tracker. Either a successor exists org-wide or remora needs its own instrument |
 | Release-cadence + versioning policy documented | tuna-os | #21 | ✅ Done — CONTRIBUTING "Releases" |
