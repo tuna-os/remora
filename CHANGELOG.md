@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3](https://github.com/tuna-os/remora/compare/v0.4.2...v0.4.3) (2026-09-18)
+
+
+### Documentation
+
+* propose remora support for bases without a package manager ([#82](https://github.com/tuna-os/remora/issues/82)) ([cae1143](https://github.com/tuna-os/remora/commit/cae1143f05e47379388cc961b2c916800c931029))
+* scope --apply and --soft-reboot to the apply command ([#65](https://github.com/tuna-os/remora/issues/65)) ([a9a1bbe](https://github.com/tuna-os/remora/commit/a9a1bbe435bd25ea1a5ae54f6e3c0197a8e054c8))
+
 ## [0.4.2](https://github.com/tuna-os/remora/compare/v0.4.1...v0.4.2) (2026-09-03)
 
 
