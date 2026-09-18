@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuna-os/remora/internal/buildplan"
 	"github.com/tuna-os/remora/internal/manifest"
 	"github.com/tuna-os/remora/internal/resolve"
 )
@@ -101,7 +102,7 @@ func TestResolveBaseReusesPin(t *testing.T) {
 		{"same pinned ref", &manifest.Manifest{Base: pin}},
 	}
 	for _, c := range cases {
-		got, err := resolveBase(dir, c.m)
+		got, err := buildplan.ResolveBase(dir, c.m)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -120,7 +121,7 @@ func TestResolveBaseRejectsStalePin(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := &manifest.Manifest{Base: "docker.io/library/debian"}
-	got, err := resolveBase(dir, m)
+	got, err := buildplan.ResolveBase(dir, m)
 	if err == nil && got == "quay.io/fedora/fedora-bootc@sha256:abc" {
 		t.Fatal("stale pin reused after base: changed to a different image")
 	}
@@ -130,7 +131,7 @@ func TestResolveBaseRejectsStalePin(t *testing.T) {
 // be inferred from the host. An explicit package_manager always wins.
 func TestResolvePMExplicitWins(t *testing.T) {
 	m := &manifest.Manifest{Base: "docker.io/library/debian", PackageManager: "apt"}
-	got, err := resolvePM(m, "docker.io/library/debian@sha256:abc")
+	got, err := buildplan.ResolvePM(m, "docker.io/library/debian@sha256:abc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestResolveLockClearsStaleLockfileOnEveryFallback(t *testing.T) {
 		if err := os.WriteFile(stale, []byte("stale lockfile"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		got := resolveLock(dir, c.m, "localhost/definitely-not-a-real-image:missing", c.pm)
+		got := buildplan.ResolveLock(dir, c.m, "localhost/definitely-not-a-real-image:missing", c.pm)
 		if got != "" {
 			t.Errorf("%s: expected a fallback to the spec list, got lock %q", c.name, got)
 		}
@@ -177,7 +178,7 @@ func TestResolveLockClearsStaleLockfileOnEveryFallback(t *testing.T) {
 func TestResolveLockRespectsOptOut(t *testing.T) {
 	dir := t.TempDir()
 	m := &manifest.Manifest{Packages: []string{"htop"}, Lockfile: boolPtr(false)}
-	if got := resolveLock(dir, m, "base@sha256:abc", "dnf"); got != "" {
+	if got := buildplan.ResolveLock(dir, m, "base@sha256:abc", "dnf"); got != "" {
 		t.Errorf("lockfile: false must force the spec-list path, got %q", got)
 	}
 }
