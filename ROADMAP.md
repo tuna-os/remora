@@ -101,6 +101,7 @@ The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. S
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
+| Decoupled provider architecture & package-less base image support (sysext/confext backends) | tuna-os | #86 | ⬜ Proposed / In planning |
 | Implement Phase 1 provider decoupling & sysext output generation | tuna-os | #82, #91 | ⬜ Planned |
 | Build-verified support for a second package-manager family (APT focus), resolver included | tuna-os | #56 | ⬜ Not started |
 | Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on a decision |
