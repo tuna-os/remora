@@ -92,7 +92,7 @@ func TestInstallRemoveRoundTrip(t *testing.T) {
 	if len(installed) != 2 {
 		t.Fatalf("expected apt + apt-get shims, got %v", installed)
 	}
-	removed, err := Remove(dir, "apt")
+	removed, err := Remove(dir)
 	if err != nil || len(removed) != 2 {
 		t.Fatalf("remove failed: %v %v", removed, err)
 	}
@@ -114,11 +114,50 @@ func TestRemoveLeavesForeignFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\n# the real thing\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	removed, err := Remove(dir, "pacman")
+	removed, err := Remove(dir)
 	if err != nil || len(removed) != 0 {
 		t.Fatalf("must not remove foreign files: %v %v", removed, err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal("foreign file was deleted")
+	}
+}
+
+func TestInstallReconcilesPreviousFamily(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Install(dir, "dnf"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Install(dir, "apt"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"dnf", "dnf5", "yum"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("stale %s shim remains after family transition", name)
+		}
+	}
+	for _, name := range []string{"apt", "apt-get"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("desired %s shim missing: %v", name, err)
+		}
+	}
+}
+
+func TestRemoveIsFamilyIndependent(t *testing.T) {
+	dir := t.TempDir()
+	for _, pm := range []string{"dnf", "apt"} {
+		for _, name := range names(pm) {
+			script, err := Script(pm, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	removed, err := Remove(dir)
+	if err != nil || len(removed) != 5 {
+		t.Fatalf("remove did not clean every owned family: %v %v", removed, err)
 	}
 }
