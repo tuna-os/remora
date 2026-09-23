@@ -258,6 +258,13 @@ func startBuild() error {
 }
 
 func cmdShims(dir string, remove bool) error {
+	if remove {
+		removed, err := shim.Remove(shim.Dir)
+		for _, p := range removed {
+			fmt.Println("removed", p)
+		}
+		return err
+	}
 	m, err := manifest.Load(dir)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -272,13 +279,6 @@ func cmdShims(dir string, remove bool) error {
 			return err
 		}
 		pm = p
-	}
-	if remove {
-		removed, err := shim.Remove(shim.Dir, pm)
-		for _, p := range removed {
-			fmt.Println("removed", p)
-		}
-		return err
 	}
 	installed, err := shim.Install(shim.Dir, pm)
 	for _, p := range installed {
