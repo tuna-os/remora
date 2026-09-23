@@ -206,8 +206,15 @@ needed on those systems, and no linkage in either direction: it's one
 
 `--no-build` on install/remove/upgrade/rebase edits state without triggering a
 build; `--dir` overrides the state directory (useful for tests/CI).
-`--apply` and `--soft-reboot auto|required` on `apply`/`build` pass through to
+`--apply` and `--soft-reboot auto|required` on `apply` pass through to
 `bootc switch` to reboot immediately.
+
+They do not apply to `build`. `remora build` starts `remora-build.service` and
+returns; the rebase happens afterwards from that unit, which always calls a
+plain `remora apply`. To build and reboot in one sitting, wait for the unit to
+finish (`journalctl -fu remora-build.service`), then reboot — the unit's apply
+has already staged the new deployment, so a later `remora apply --apply` reports
+that there is nothing to do and does not reboot for you.
 
 ### `remora upgrade`, not `bootc upgrade`
 

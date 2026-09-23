@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -41,6 +42,18 @@ func names(pm string) []string {
 		return []string{"apk"}
 	}
 	return nil
+}
+
+func allNames() []string {
+	var result []string
+	for _, pm := range []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} {
+		for _, name := range names(pm) {
+			if !slices.Contains(result, name) {
+				result = append(result, name)
+			}
+		}
+	}
+	return result
 }
 
 // Script renders the shim for one command of a package-manager family.
@@ -131,12 +144,29 @@ func Install(dir, pm string) ([]string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	var installed []string
+	// Preflight the desired paths before changing anything. Installation is a
+	// reconciliation operation, but it must never remove an old shim and then
+	// discover that a foreign file prevents installing the replacement set.
 	for _, name := range cmds {
 		path := filepath.Join(dir, name)
 		if data, err := os.ReadFile(path); err == nil && !isOurs(data) {
-			return installed, fmt.Errorf("%s exists and is not a remora shim; not overwriting", path)
+			return nil, fmt.Errorf("%s exists and is not a remora shim; not overwriting", path)
 		}
+	}
+	for _, name := range allNames() {
+		if slices.Contains(cmds, name) {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if data, err := os.ReadFile(path); err == nil && isOurs(data) {
+			if err := os.Remove(path); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var installed []string
+	for _, name := range cmds {
+		path := filepath.Join(dir, name)
 		script, err := Script(pm, name)
 		if err != nil {
 			return installed, err
@@ -149,11 +179,12 @@ func Install(dir, pm string) ([]string, error) {
 	return installed, nil
 }
 
-// Remove deletes remora-generated shims for pm from dir. Files that aren't
-// remora shims are left alone.
-func Remove(dir, pm string) ([]string, error) {
+// Remove deletes every remora-generated shim from dir, regardless of which
+// package-manager family is active. Files that aren't remora shims are left
+// alone.
+func Remove(dir string) ([]string, error) {
 	var removed []string
-	for _, name := range names(pm) {
+	for _, name := range allNames() {
 		path := filepath.Join(dir, name)
 		data, err := os.ReadFile(path)
 		if err != nil || !isOurs(data) {
