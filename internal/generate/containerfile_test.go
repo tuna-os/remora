@@ -99,6 +99,59 @@ func TestContainerfileLayerSplit(t *testing.T) {
 	}
 }
 
+// dnf's rpmdb lives in a lower overlayfs layer in the base image; rpm's
+// sqlite backend can't complete an atomic write there ("database disk image
+// is malformed"). The package layer must copy the rpmdb up before dnf runs,
+// and only for dnf — other package managers don't have this problem.
+// https://github.com/tuna-os/remora/issues/44
+func TestContainerfileDNFCopiesUpRPMDB(t *testing.T) {
+	m := &manifest.Manifest{Packages: []string{"fish"}}
+	cf, err := Containerfile(m, "ghcr.io/tuna-os/bonito:cosmic", "dnf", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"cp -a /usr/share/rpm /usr/share/rpm.copyup",
+		"rm -rf /usr/share/rpm",
+		"mv /usr/share/rpm.copyup /usr/share/rpm",
+		"rpm --rebuilddb",
+	} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("missing rpmdb copy-up step %q", want)
+		}
+	}
+	copyUp := strings.Index(cf, "rpm --rebuilddb")
+	install := strings.Index(cf, "dnf -y install")
+	if copyUp < 0 || install < 0 || copyUp > install {
+		t.Fatal("rpmdb copy-up must run before dnf install")
+	}
+
+	other, err := Containerfile(m, "base:latest", "apt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(other, "rpm --rebuilddb") {
+		t.Error("rpmdb copy-up is dnf-specific and must not appear for other package managers")
+	}
+}
+
+// dnf5 leaves /run/dnf, /var/log/dnf5.log, and /var/log/dnf/ in the image.
+// bootc container lint rejects content baked into /run (tmpfs at boot), and
+// the scrub step must remove all of it so identical inputs stay a no-op
+// rebuild. https://github.com/tuna-os/remora/issues/44
+func TestContainerfileDNFScrubsDNF5Leftovers(t *testing.T) {
+	m := &manifest.Manifest{Packages: []string{"fish"}}
+	cf, err := Containerfile(m, "ghcr.io/tuna-os/bonito:cosmic", "dnf", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/run/dnf", "/var/log/dnf5.log", "/var/log/dnf/"} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("scrub step missing %q", want)
+		}
+	}
+}
+
 // Identical inputs must render an identical Containerfile — the first half
 // of "identical inputs produce an identical image digest".
 func TestContainerfileDeterministic(t *testing.T) {
