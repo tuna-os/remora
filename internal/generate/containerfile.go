@@ -23,6 +23,9 @@ import (
 type pm struct {
 	// cacheMounts are extra --mount flags on the package RUN line.
 	cacheMounts []string
+	// preInstall is shell run inside the "Packages" RUN layer before install
+	// (or installLock). Empty for package managers that don't need it.
+	preInstall string
 	// install renders the package installation command.
 	install func(pkgs []string) string
 	// installLock renders installation from a lockfile at path, when this
@@ -48,6 +51,15 @@ var pms = map[string]pm{
 			"--mount=type=cache,dst=/var/cache/libdnf5",
 			"--mount=type=cache,dst=/var/cache/dnf",
 		},
+		// The base image's rpmdb lives in a lower overlayfs layer. rpm's
+		// sqlite backend needs an atomic rename to write, which fails there
+		// ("database disk image is malformed"). Copy the rpmdb up into the
+		// upper (writable) layer before dnf touches it.
+		// See https://github.com/tuna-os/remora/issues/44.
+		preInstall: "cp -a /usr/share/rpm /usr/share/rpm.copyup\n" +
+			"rm -rf /usr/share/rpm\n" +
+			"mv /usr/share/rpm.copyup /usr/share/rpm\n" +
+			"rpm --rebuilddb\n",
 		install: func(pkgs []string) string {
 			return "dnf -y install \\\n    " + strings.Join(pkgs, " \\\n    ")
 		},
@@ -56,8 +68,10 @@ var pms = map[string]pm{
 		},
 		// dnf's history database records transaction timestamps. The rpmdb
 		// under /usr/lib/sysimage/rpm is deliberately NOT scrubbed — it is
-		// the installed-package record, not a cache.
-		scrub: []string{"/var/lib/dnf/history*"},
+		// the installed-package record, not a cache. dnf5 also leaves state
+		// under /run, which bootc container lint rejects outright since
+		// /run is tmpfs at boot and anything baked in there is dead weight.
+		scrub: []string{"/var/lib/dnf/history*", "/run/dnf", "/var/log/dnf5.log", "/var/log/dnf/"},
 	},
 	"zypper": {
 		cacheMounts: []string{"--mount=type=cache,dst=/var/cache/zypp"},
@@ -159,6 +173,10 @@ func Containerfile(m *manifest.Manifest, base, pmName, lock string) (string, err
 		}
 		mounts := append([]string{tmpMount}, p.cacheMounts...)
 		writeRun(&b, "Packages (manifest)", mounts, func(s *strings.Builder) {
+			if p.preInstall != "" {
+				s.WriteString(p.preInstall)
+				s.WriteString("\n")
+			}
 			if useLock {
 				s.WriteString(p.installLock(lockDst+"/"+lock) + "\n")
 			} else {
