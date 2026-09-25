@@ -1,6 +1,6 @@
 # remora Roadmap
 
-**Last updated**: 2026-09-18 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-09-25 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -18,11 +18,10 @@ for how far that goal has actually been carried today.
 
 ## Current Status
 
-- **Latest release**: v0.4.2 (2026-09-03) — standalone Linux binaries for
+- **Latest release**: v0.4.3 (2026-09-23) — standalone Linux binaries for
   amd64/arm64 + `checksums.txt`, cut automatically by release-please and
-  published via goreleaser. Adds the DNF lockfile resolver (#34) on top of the
-  digest-pinned bases, reproducible layers, and no-op rebuilds shipped in
-  v0.3.0 (#27).
+  published via goreleaser. Adds sysext/confext backend specification (#82)
+  and scopes `--apply`/`--soft-reboot` to the apply command (#65).
 - **Preinstalled**: TunaOS images pin `REMORA_VERSION=v0.4.0` via
   `build_scripts/install-remora.sh`. The update from v0.2.0 was completed in
   tuna-os/tunaOS#2083.
@@ -80,32 +79,31 @@ currently has the instrument that resolves the tension.
 
 ## Quarterly Goals
 
-### Current Quarter (2026 Q3 Exit & Q4 2026 Focus)
+### Current Quarter (2026 Q4 Focus — "Mature & Decouple")
 
-**Theme**: ship, stabilize, and expand customization backends
+**Theme**: stabilize builds, decouple provider backends, and multi-distro coverage
 
-The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. Stabilizing dnf overlayfs interactions (#44) and decoupling provider backends (#82, #91) form the immediate bridge into Q4.
+With v0.4.3 released, the Q3 exit targets are completed. Q4 focuses on eliminating the dnf overlayfs failure (#44) via automated CI build gates (#55), implementing sysext/confext generation for package-less desktop bases (#82), and achieving solver parity for APT.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
 | `remora build` works on a shipped TunaOS dnf image | hanthor | #44 | 🔴 Open — blocking item |
-| Decouple providers & implement sysext/confext backend for package-less bases | hanthor | #82, #91 | 🟡 Design proposed (#82) |
-| Add CI `podman build` matrix check | tuna-os | #55 | 🔴 Open |
-| Cut v0.4.0 / v0.4.2 releases with accumulated fixes | hanthor | #21 | ✅ Done |
-| Refresh the TunaOS image pin | hanthor | tunaOS#2083 | ✅ Done — v0.4.0 |
+| Containerized build verification tier in CI (`podman build` matrix) | tuna-os | #55 | 🔴 Open |
+| Decoupled provider architecture & sysext/confext backend for package-less bases | hanthor | #82 | 🟡 Design proposed (#82) |
+| APT lockfile resolver parity & build verification | tuna-os | #56 | ⬜ Planned |
 | Resolve runtime-units drift (#17) | hanthor | #17 | ⬜ Not started |
+| Update TunaOS image pin to latest remora release line | hanthor | tunaOS | ⬜ Planned |
 
-### Next Quarter (2026 Q4)
+### Next Quarter (2027 Q1 — "Scale")
 
-**Theme**: versioning, alternative backends, and multi-distro coverage
+**Theme**: multi-backend maturity, transactional updates, and org adoption telemetry
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
-| Decoupled provider architecture & package-less base image support (sysext/confext backends) | tuna-os | #86 | ⬜ Proposed / In planning |
-| Implement Phase 1 provider decoupling & sysext output generation | tuna-os | #82, #91 | ⬜ Planned |
-| Build-verified support for a second package-manager family (APT focus), resolver included | tuna-os | #56 | ⬜ Not started |
-| Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on a decision |
-| Release-cadence + versioning policy documented | tuna-os | #21 | ✅ Done — CONTRIBUTING "Releases" |
+| Transactional sysext/confext reload & atomic rollback validation | tuna-os | #82 | ⚪ Planned |
+| Multi-distribution resolver parity across all 6 package manager families | tuna-os | #56 | ⚪ Planned |
+| Derived image build telemetry & org adoption tracking integration | tuna-os | *needs a tracker* | ⚪ In design |
+| Automatic overlayfs atomic repair for legacy base layers | hanthor | #44 | ⚪ Planned |
 
 ---
 
