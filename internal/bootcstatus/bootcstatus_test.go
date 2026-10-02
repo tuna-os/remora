@@ -1,7 +1,6 @@
 package bootcstatus
 
 import (
-	"strings"
 	"testing"
 )
 
