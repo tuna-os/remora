@@ -8,13 +8,13 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/tuna-os/remora/internal/bootcstatus"
+	"github.com/tuna-os/remora/internal/host/bootc"
 )
 
 // BootedImage returns the image ref the system is currently booted from.
-// Deprecated: use bootcstatus.BootedImage instead.
+// Deprecated: use bootc.BootedImage instead.
 func BootedImage() (string, error) {
-	return bootcstatus.BootedImage()
+	return bootc.BootedImage()
 }
 
 // DetectPM picks the package manager for the running system. The booted
@@ -97,9 +97,9 @@ func Systemctl(args ...string) error {
 }
 
 // BootedImageDigest returns the image ref and digest the system is booted from.
-// Deprecated: use bootcstatus.BootedImageDigest instead.
+// Deprecated: use bootc.BootedImageDigest instead.
 func BootedImageDigest() (ref, digest string, err error) {
-	return bootcstatus.BootedImageDigest()
+	return bootc.BootedImageDigest()
 }
 
 // PinBase returns ref pinned to a digest. A ref that already carries a
@@ -190,30 +190,15 @@ func parseImageProbe(out []byte) (string, error) {
 	return detectPM(osID, func(name string) bool { return name == bin })
 }
 
-func buildBootcSwitchArgs(ref string, apply bool, softReboot string) []string {
-	args := []string{"switch", "--transport=containers-storage"}
-	if apply {
-		args = append(args, "--apply")
-	}
-	if softReboot != "" {
-		args = append(args, "--soft-reboot="+softReboot)
-	}
-	args = append(args, ref)
-	return args
-}
-
 // BootcSwitch rebases the system onto ref. ref should carry a digest so that
 // bootc sees a distinct target even when the tag is unchanged.
+// Deprecated: use bootc.Switch instead.
 func BootcSwitch(ref string, apply bool, softReboot string) error {
-	args := buildBootcSwitchArgs(ref, apply, softReboot)
-	cmd := exec.Command("bootc", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return bootc.Switch(ref, apply, softReboot)
 }
 
 // StagedOrBootedDigest returns the digest of the image the system will next boot.
-// Deprecated: use bootcstatus.StagedOrBootedDigest instead.
+// Deprecated: use bootc.StagedOrBootedDigest instead.
 func StagedOrBootedDigest() (string, error) {
-	return bootcstatus.StagedOrBootedDigest()
+	return bootc.StagedOrBootedDigest()
 }
