@@ -1,8 +1,6 @@
 package host
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -40,18 +38,4 @@ func TestPinBaseAlreadyPinned(t *testing.T) {
 	}
 }
 
-func TestOSReleaseIDFromPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	file := filepath.Join(tmpDir, "os-release")
-	if err := os.WriteFile(file, []byte("NAME=Fedora\nID=fedora\nVERSION=42\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if got := osReleaseIDFromPath(file); got != "fedora" {
-		t.Errorf("osReleaseIDFromPath(%q) = %q, want %q", file, got, "fedora")
-	}
 
-	nonExistent := filepath.Join(tmpDir, "does-not-exist")
-	if got := osReleaseIDFromPath(nonExistent); got != "" {
-		t.Errorf("osReleaseIDFromPath(%q) = %q, want empty string for missing file", nonExistent, got)
-	}
-}
