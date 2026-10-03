@@ -38,4 +38,3 @@ func TestPinBaseAlreadyPinned(t *testing.T) {
 	}
 }
 
-
