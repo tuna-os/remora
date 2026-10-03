@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/tuna-os/remora/internal/bootc"
+	"github.com/tuna-os/remora/internal/digest"
 	"github.com/tuna-os/remora/internal/factory"
-	"github.com/tuna-os/remora/internal/host"
 	"github.com/tuna-os/remora/internal/manifest"
 	"github.com/tuna-os/remora/internal/resolve"
 )
@@ -20,7 +21,7 @@ import (
 func ResolveBase(dir string, m *manifest.Manifest) (string, error) {
 	want := m.Base
 	if pinned := manifest.LoadBase(dir); pinned != "" {
-		name, _, _ := host.SplitDigest(pinned)
+		name, _, _ := digest.SplitDigest(pinned)
 		if want == "" || name == want || pinned == want {
 			return pinned, nil
 		}
