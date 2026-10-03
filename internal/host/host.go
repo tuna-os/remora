@@ -3,10 +3,10 @@
 package host
 
 import (
-	"tuna-os/remora/internal/bootc"
-	"tuna-os/remora/internal/digest"
-	"tuna-os/remora/internal/pm"
-	"tuna-os/remora/internal/system"
+	"github.com/tuna-os/remora/internal/bootc"
+	"github.com/tuna-os/remora/internal/digest"
+	"github.com/tuna-os/remora/internal/pm"
+	"github.com/tuna-os/remora/internal/system"
 )
 
 // BootedImage returns the image ref the system is currently booted from.
