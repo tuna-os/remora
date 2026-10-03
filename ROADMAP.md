@@ -1,6 +1,6 @@
 # remora Roadmap
 
-**Last updated**: 2026-09-18 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-10-03 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -82,30 +82,40 @@ currently has the instrument that resolves the tension.
 
 ### Current Quarter (2026 Q3 Exit & Q4 2026 Focus)
 
-**Theme**: ship, stabilize, and expand customization backends
+**Theme**: stabilize, verify, and plan decoupling
 
-The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. Stabilizing dnf overlayfs interactions (#44) and decoupling provider backends (#82, #91) form the immediate bridge into Q4.
+The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. **Critical blockers**: P0 verification gaps (no CI build) and known defects on shipped images (#44) now block Q4 expansion. Pending decisions on provider decoupling scope (#111) and adoption tracking (#110) must be made before workload can be sequenced.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
-| `remora build` works on a shipped TunaOS dnf image | hanthor | #44 | 🔴 Open — blocking item |
-| Decouple providers & implement sysext/confext backend for package-less bases | hanthor | #82, #91 | 🟡 Design proposed (#82) |
-| Add CI `podman build` matrix check | tuna-os | #55 | 🔴 Open |
+| Resolve P0 defect: `remora build` fails on dnf bases with overlayfs rpmdb | hanthor | #44 | 🔴 Blocking — known on TunaOS v0.4.0 images |
+| Add CI verification: `podman build` matrix against multiple package-manager families | tuna-os | #55, #107 | 🔴 P0 — currently no build runs in CI |
+| Lock scope for provider decoupling (Phase 1 vs. full sysext/confext) | hanthor | #82, #91, #111 | 🟡 Design exists, approval pending |
+| Resolve runtime-units drift from manifest after initialization | hanthor | #17, #112 | 🟡 Stalled 8+ weeks — needs prioritization |
+| Clarify Q4 adoption tracking decision | tuna-os | #110 | 🟡 Blocked — decision required |
 | Cut v0.4.0 / v0.4.2 releases with accumulated fixes | hanthor | #21 | ✅ Done |
 | Refresh the TunaOS image pin | hanthor | tunaOS#2083 | ✅ Done — v0.4.0 |
-| Resolve runtime-units drift (#17) | hanthor | #17 | ⬜ Not started |
 
 ### Next Quarter (2026 Q4)
 
-**Theme**: versioning, alternative backends, and multi-distro coverage
+**Theme**: unblock Q3 defects, lock decisions, prepare Phase 1
+
+Q4 planning is contingent on resolving three decision points:
+1. **Provider decoupling scope** (#111) — full decoupling or Phase 1 partial?
+2. **Adoption tracking** (#110) — is remora included in Q4 org metrics?
+3. **Priority clarification** (#112) — is #17 (drift) P1 or backlog?
+
+Once locked, the unblocking sequence is: fix #44 (dnf), add CI build (#107), then begin Phase 1 decoupling.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
-| Decoupled provider architecture & package-less base image support (sysext/confext backends) | tuna-os | #86 | ⬜ Proposed / In planning |
-| Implement Phase 1 provider decoupling & sysext output generation | tuna-os | #82, #91 | ⬜ Planned |
-| Build-verified support for a second package-manager family (APT focus), resolver included | tuna-os | #56 | ⬜ Not started |
-| Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on a decision |
-| Release-cadence + versioning policy documented | tuna-os | #21 | ✅ Done — CONTRIBUTING "Releases" |
+| **BLOCKER**: Decide provider-decoupling scope and file Phase 1 design spec | tuna-os | #111 | 🔴 Must lock before implementation |
+| **BLOCKER**: Resolve or defer #17 (runtime-units drift) — clarify priority | hanthor | #112 | 🔴 Must decide before Q4 kickoff |
+| **BLOCKER**: Clarify adoption-tracking decision and create tracking issue if approved | tuna-os | #110 | 🔴 Blocks adoption coordination |
+| Fix #44: dnf rpmdb atomicity on overlayfs | hanthor | #44 | 🔴 After blockers cleared, target v0.5.0 |
+| Add CI `podman build` matrix (dnf/apt/zypper, amd64/arm64) | tuna-os | #107 | 🔴 After #44 fix, verify fix in CI |
+| Implement Phase 1 provider decoupling & sysext output | tuna-os | #82, #91, #111 | ⬜ After scope decision (#111) |
+| Build-verified support for APT resolver | tuna-os | #56 | ⬜ After Phase 1 launches |
 
 ---
 
