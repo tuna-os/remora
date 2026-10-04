@@ -114,7 +114,7 @@ The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. S
 | Item | Issue | Priority |
 |------|-------|----------|
 | CLI package owns the build-plan state machine | #49 | P2 |
-| README install snippet runs `sudo install` even when the checksum check fails | #19 | P2 |
+| ~~README install snippet runs `sudo install` even when the checksum check fails~~ — fixed in #20 (v0.2.7) | ~~#19~~ | ~~P2~~ |
 | Runtime units are written only by `init`; other paths rewrite the Containerfile alone | #17 | P1 |
 
 ---
