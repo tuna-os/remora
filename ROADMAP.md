@@ -1,6 +1,6 @@
 # remora Roadmap
 
-**Last updated**: 2026-09-18 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-10-04 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -18,14 +18,13 @@ for how far that goal has actually been carried today.
 
 ## Current Status
 
-- **Latest release**: v0.4.2 (2026-09-03) — standalone Linux binaries for
+- **Latest release**: v0.4.3 (2026-09-24) — standalone Linux binaries for
   amd64/arm64 + `checksums.txt`, cut automatically by release-please and
-  published via goreleaser. Adds the DNF lockfile resolver (#34) on top of the
-  digest-pinned bases, reproducible layers, and no-op rebuilds shipped in
-  v0.3.0 (#27).
+  published via goreleaser. Adds bootc package integration and refactored
+  provider architecture on top of v0.4.2's DNF lockfile resolver.
 - **Preinstalled**: TunaOS images pin `REMORA_VERSION=v0.4.0` via
-  `build_scripts/install-remora.sh`. The update from v0.2.0 was completed in
-  tuna-os/tunaOS#2083.
+  `build_scripts/install-remora.sh`. An update to v0.4.3 is being evaluated
+  post-release to capture the provider decoupling gains.
 - **Maturity**: active development since 07-11; factory, generate, host,
   manifest, and shim internals covered by unit tests; install snippet
   hardened to fail closed on bad checksums (#19/#20).
@@ -67,7 +66,7 @@ currently has the instrument that resolves the tension.
 |----------|------|----------|--------|
 | P0 | `remora build` fails on dnf bases — rpmdb on overlayfs; fix in the generator, not in user manifests | #44 | 🔴 Open — reproduced on an image that pins v0.4.0 |
 | P0 | A build tier in CI: one real `podman build` against a bootc base, plus a rebuild asserting the digest is stable | #55, #53 | 🔴 Open — no build runs today |
-| P1 | Provider architecture decoupling & package-less base support (sysext/confext backends for Dakota/Tromsø) | #82, #91 | 🟡 Open — design proposed in #82 |
+| P1 | Provider architecture decoupling & package-less base support (sysext/confext backends for Dakota/Tromsø) | #82, #91 | 🟡 In progress — provider refactor merged (#87), sysext/confext generation in scope for Phase 2 |
 | P1 | Second package-manager family carried to full support (resolver + build-verified). apt is the strategic pick — it is the other family the org ships infrastructure for (tuna-os/debian-copr) | #56 | ⬜ Not started — needs maintainer sequencing |
 | P1 | Runtime units drift from the manifest after initialization | #17 | 🟡 Open |
 | ~~P0~~ | ~~Update `REMORA_VERSION` in tunaOS so images receive the digest-pinned rebase fix~~ — TunaOS now pins v0.4.0 | tunaOS#2083 | ✅ Done |
@@ -84,28 +83,29 @@ currently has the instrument that resolves the tension.
 
 **Theme**: ship, stabilize, and expand customization backends
 
-The "ship" half is done: v0.4.2 released, automated cutting, and a TunaOS pin. Stabilizing dnf overlayfs interactions (#44) and decoupling provider backends (#82, #91) form the immediate bridge into Q4.
+The "ship" half is done: v0.4.3 released, automated cutting, and a TunaOS pin pending evaluation. Provider architecture decoupling (#87 merged) unblocks package-less base support. Stabilizing dnf overlayfs interactions (#44) and CI build-verification (#55) remain P0 blockers.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
-| `remora build` works on a shipped TunaOS dnf image | hanthor | #44 | 🔴 Open — blocking item |
-| Decouple providers & implement sysext/confext backend for package-less bases | hanthor | #82, #91 | 🟡 Design proposed (#82) |
-| Add CI `podman build` matrix check | tuna-os | #55 | 🔴 Open |
-| Cut v0.4.0 / v0.4.2 releases with accumulated fixes | hanthor | #21 | ✅ Done |
-| Refresh the TunaOS image pin | hanthor | tunaOS#2083 | ✅ Done — v0.4.0 |
+| `remora build` works on a shipped TunaOS dnf image | hanthor | #44 | 🔴 Open — blocking item for production use |
+| Decouple providers & implement sysext/confext backend for package-less bases | hanthor | #82, #91, #87 | 🟡 Provider refactor merged; sysext/confext generation phase 2 |
+| Add CI `podman build` matrix check | tuna-os | #55 | 🔴 Open — no build executed in CI today |
+| Cut v0.4.3 release with provider decoupling | hanthor | #83 | ✅ Done (2026-09-24) |
+| Evaluate TunaOS pin update to v0.4.3 | hanthor | tunaOS#TBD | ⬜ Pending — blocked on #44 fix |
 | Resolve runtime-units drift (#17) | hanthor | #17 | ⬜ Not started |
 
 ### Next Quarter (2026 Q4)
 
-**Theme**: versioning, alternative backends, and multi-distro coverage
+**Theme**: stabilization, backends, and multi-distro coverage
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
-| Decoupled provider architecture & package-less base image support (sysext/confext backends) | tuna-os | #86 | ⬜ Proposed / In planning |
-| Implement Phase 1 provider decoupling & sysext output generation | tuna-os | #82, #91 | ⬜ Planned |
-| Build-verified support for a second package-manager family (APT focus), resolver included | tuna-os | #56 | ⬜ Not started |
-| Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on a decision |
-| Release-cadence + versioning policy documented | tuna-os | #21 | ✅ Done — CONTRIBUTING "Releases" |
+| Fix dnf rpmdb overlayfs corruption — blockers both build (#44) and image adoption (#55) | hanthor | #44 | 🔴 Critical blocker |
+| Implement sysext/confext output generation (Phase 2 of provider decoupling) | tuna-os | #82, #91 | ⬜ Planned for Q4 after Phase 1 lands |
+| Add `podman build` verification to CI pipeline | tuna-os | #55 | 🔴 Open — needed before marking package-managers build-verified |
+| Build-verified support for a second package-manager family (APT focus), resolver included | tuna-os | #56 | ⬜ Blocked on #55 CI tier |
+| Adoption: remora usage surfaces in an org adoption snapshot | tuna-os | *needs a tracker* | ⬜ Blocked on #44/#55 resolution |
+| Evaluate TunaOS image pin update to v0.4.3+ | tuna-os | tunaOS#TBD | ⬜ Pending #44 fix |
 
 ---
 
