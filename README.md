@@ -238,6 +238,32 @@ pinned base and stages it again. See
 for the full recovery procedure — stop the automation first, then roll back,
 then find and undo the input that broke.
 
+## Known Issues
+
+### DNF bases: 'database disk image is malformed'
+
+On dnf-based bootc images (e.g., `ghcr.io/tuna-os/bonito:cosmic`), remora may
+fail to build with:
+
+```
+rpmdb error(-13): database disk image is malformed
+```
+
+**Root cause:** The base image's rpmdb sits in a lower overlayfs layer where
+SQLite cannot write atomically. See [#44](https://github.com/tuna-os/remora/issues/44)
+for tracking.
+
+**Temporary workaround:** Add the following to your `remora.yaml` to reinitialize
+the rpmdb in the current layer before the package transaction:
+
+```yaml
+extra_run: |
+  rpm --initdb
+```
+
+This works around the overlayfs limitation while the permanent fix is implemented.
+For updates, see [#44](https://github.com/tuna-os/remora/issues/44).
+
 ## Building
 
 ```bash
