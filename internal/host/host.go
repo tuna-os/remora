@@ -29,7 +29,7 @@ func PinBase(ref string) (string, error) {
 
 // SplitDigest splits "image@sha256:..." into its name and digest.
 // Deprecated: Use digest.SplitDigest instead.
-func SplitDigest(ref string) (name, digest string, ok bool) {
+func SplitDigest(ref string) (name, value string, ok bool) {
 	return digest.SplitDigest(ref)
 }
 
