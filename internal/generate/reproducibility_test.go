@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/tuna-os/remora/internal/manifest"
@@ -212,26 +213,17 @@ func TestTimestampScrubbing(t *testing.T) {
 
 func countOccurrences(s, substring string) int {
 	count := 0
+	start := 0
 	for {
-		idx := indexAfter(s, substring)
+		idx := strings.Index(s[start:], substring)
 		if idx < 0 {
 			return count
 		}
 		count++
-		s = s[idx+1:]
+		start += idx + len(substring)
 	}
-}
-
-func indexAfter(s, substring string) int {
-	for i := 0; i < len(s); i++ {
-		if len(s)-i >= len(substring) &&
-			s[i:i+len(substring)] == substring {
-			return i
-		}
-	}
-	return -1
 }
 
 func hasSubstring(s, substring string) bool {
-	return indexAfter(s, substring) >= 0
+	return strings.Contains(s, substring)
 }
