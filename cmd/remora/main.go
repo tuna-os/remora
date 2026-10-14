@@ -16,6 +16,7 @@ import (
 	"github.com/tuna-os/remora/internal/buildplan"
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
+	"github.com/tuna-os/remora/internal/log"
 	"github.com/tuna-os/remora/internal/manifest"
 	"github.com/tuna-os/remora/internal/shim"
 )
@@ -62,7 +63,7 @@ manifest's extra_run list or a build_files script.`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "remora:", err)
+		log.Error("command failed", "error", err.Error()); fmt.Fprintf(os.Stderr, "remora: %v\n", err)
 		os.Exit(1)
 	}
 }
