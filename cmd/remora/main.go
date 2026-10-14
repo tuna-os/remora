@@ -63,7 +63,8 @@ manifest's extra_run list or a build_files script.`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		log.Error("command failed", "error", err.Error()); fmt.Fprintf(os.Stderr, "remora: %v\n", err)
+		log.Error("command failed", "error", err.Error())
+		fmt.Fprintf(os.Stderr, "remora: %v\n", err)
 		os.Exit(1)
 	}
 }
