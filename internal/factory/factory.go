@@ -134,6 +134,22 @@ func InstallUupdHook(root string) error {
 	return os.WriteFile(path, []byte(UupdDropin()), 0o644)
 }
 
+// RemoveUupdHook removes the uupd drop-in symmetrically with InstallUupdHook.
+// This is called by `remora disable` to ensure that disabling the timer also
+// stops uupd from triggering rebuilds on hosts where remora hooked into uupd
+// during `remora init`.
+func RemoveUupdHook(root string) error {
+	path := filepath.Join(root, UupdDropinPath)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// Try to remove the drop-in directory if it's empty (no other drop-ins).
+	// Ignore errors — if it's not empty or if removal fails for another reason,
+	// leaving the empty directory behind is harmless.
+	_ = os.Remove(filepath.Dir(path))
+	return nil
+}
+
 // InstallUnits writes the quadlet and timer under root (root == "/" for the
 // real system; tests pass t.TempDir()) and reloads systemd.
 func InstallUnits(m *manifest.Manifest, dir, root, exe string, reload func() error) error {

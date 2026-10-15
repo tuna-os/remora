@@ -33,6 +33,7 @@ Commands:
   apply                Rebase to the built image if its digest changed
   upgrade              Refresh the pinned base digest, then rebuild
   rebase IMAGE         Point the manifest at a new base image, then rebuild
+  rebase --previous     Rebase to the previous known-good base (from base.previous)
   enable               Enable the automatic rebuild timer
   disable              Disable the automatic rebuild timer
   status               Show booted image, manifest, and timer state
@@ -132,7 +133,15 @@ func run(args []string) error {
 	case "enable":
 		return host.Systemctl("enable", "--now", factory.TimerName)
 	case "disable":
-		return host.Systemctl("disable", "--now", factory.TimerName)
+		if err := host.Systemctl("disable", "--now", factory.TimerName); err != nil {
+			return err
+		}
+		// Also remove the uupd drop-in if it exists (symmetrical with remora init).
+		// If uupd is not installed, this does nothing. Warn but do not fail.
+		if err := factory.RemoveUupdHook("/"); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not remove uupd hook: %v\n", err)
+		}
+		return host.Systemctl("daemon-reload")
 	case "status":
 		return cmdStatus(dir)
 	case "shims":
@@ -391,13 +400,26 @@ func cmdUpgrade(dir string, noBuild bool) error {
 // did not supply one.
 func cmdRebase(dir string, args []string, noBuild bool) error {
 	if len(args) != 1 {
-		return fmt.Errorf("rebase takes exactly one image ref")
+		return fmt.Errorf("rebase takes exactly one image ref, or use --previous")
 	}
+	
+	var imageRef string
+	if args[0] == "--previous" {
+		prev := manifest.LoadBasePrevious(dir)
+		if prev == "" {
+			return fmt.Errorf("no previous base pin recorded (base.previous does not exist)")
+		}
+		imageRef = prev
+		fmt.Println("rebasing to previous base:", imageRef)
+	} else {
+		imageRef = args[0]
+	}
+	
 	m, err := manifest.Load(dir)
 	if err != nil {
 		return err
 	}
-	pinned, err := host.PinBase(args[0])
+	pinned, err := host.PinBase(imageRef)
 	if err != nil {
 		return err
 	}
