@@ -166,15 +166,14 @@ func LoadBase(dir string) string {
 	return strings.TrimSpace(string(data))
 }
 
-// SaveBase writes the pinned base ref to dir, keeping a copy of the previous
-// base pin for rollback purposes.
+// SaveBase writes the pinned base ref to dir. When this moves an existing
+// pin, the old one is kept in base.previous for rollback; re-saving the same
+// pin leaves base.previous untouched so it still names the last distinct base.
 func SaveBase(dir, ref string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	// Before overwriting, save the current base as base.previous for rollback.
-	// If no previous base exists, that's fine — this is the first pin.
-	if current := LoadBase(dir); current != "" {
+	if current := LoadBase(dir); current != "" && current != ref {
 		if err := os.WriteFile(BasePreviousPath(dir), []byte(current+"\n"), 0o644); err != nil {
 			return err
 		}

@@ -94,3 +94,30 @@ func TestSaveBaseCreatesDir(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// Moving the pin records the old one; re-saving the same pin (as
+// ResolveBase does on every build) must not clobber that history.
+func TestSaveBaseKeepsPrevious(t *testing.T) {
+	dir := t.TempDir()
+	if err := SaveBase(dir, "img@sha256:aaa"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadBasePrevious(dir); got != "" {
+		t.Fatalf("first pin recorded a previous: %q", got)
+	}
+	if err := SaveBase(dir, "img@sha256:bbb"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadBasePrevious(dir); got != "img@sha256:aaa" {
+		t.Fatalf("previous = %q, want img@sha256:aaa", got)
+	}
+	if err := SaveBase(dir, "img@sha256:bbb"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadBasePrevious(dir); got != "img@sha256:aaa" {
+		t.Errorf("re-saving the same pin changed previous to %q", got)
+	}
+	if got := LoadBase(dir); got != "img@sha256:bbb" {
+		t.Errorf("base = %q, want img@sha256:bbb", got)
+	}
+}

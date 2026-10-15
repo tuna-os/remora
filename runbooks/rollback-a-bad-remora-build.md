@@ -27,22 +27,9 @@ while it is in progress.
 sudo remora disable
 ```
 
-That disables `remora-build.timer`. **If uupd is installed on this host, that
-is not sufficient.** `remora init` writes a drop-in that makes every uupd run
-pull in the rebuild:
-
-```bash
-sudo systemctl cat -- uupd.service | grep -A2 'remora'
-```
-
-If `/etc/systemd/system/uupd.service.d/10-remora.conf` exists, uupd still
-drives rebuilds on its own schedule regardless of the timer's state. Move it
-aside and reload:
-
-```bash
-sudo mv /etc/systemd/system/uupd.service.d/10-remora.conf /root/10-remora.conf.disabled
-sudo systemctl daemon-reload
-```
+That disables `remora-build.timer` and, on hosts with uupd, removes the
+drop-in `remora init` wrote (`/etc/systemd/system/uupd.service.d/10-remora.conf`)
+that makes every uupd run pull in the rebuild, then reloads systemd.
 
 Confirm nothing is left armed:
 
@@ -52,7 +39,7 @@ systemctl is-active  remora-build.service      # expect: inactive
 systemctl cat -- uupd.service | grep -c remora # expect: 0
 ```
 
-Restoring the drop-in at the end (step 5) is what re-enables the uupd path.
+`sudo remora enable` at the end (step 5) re-arms both.
 
 ## Step 2 — get back onto a working system
 
@@ -106,19 +93,19 @@ green `remora-build.service` does not clear the build as the cause.
 
 ## Step 4 — undo the bad input
 
-**Base pin moved.** `remora upgrade` overwrites `/etc/remora/base` in place
-and keeps no history, so the previous known-good digest is not recorded
-anywhere on the host. Recover it from the deployment you rolled back to:
+**Base pin moved.** `remora upgrade` and `remora rebase` keep the pin they
+replace in `/etc/remora/base.previous`, so going back one base is:
 
 ```bash
-sudo bootc status --json | jq -r '.status.rollback.image.image.image, .status.rollback.image.imageDigest'
+cat /etc/remora/base.previous    # the pin that will be restored
+sudo remora rebase --previous --no-build
 ```
 
-On a remora-managed system that reports the *local* image, not the base, so
-it only helps when the rollback deployment predates remora's first rebase.
-Otherwise recover the digest from wherever the base is published (the
-registry's tag history, or the TunaOS image build that produced it), then pin
-back to it explicitly:
+Only one generation is kept. If the bad base is more than one pin back, or
+`base.previous` is missing (the pin last moved before remora recorded it),
+recover the digest from wherever the base is published (the registry's tag
+history, or the TunaOS image build that produced it), then pin back to it
+explicitly:
 
 ```bash
 sudo remora rebase <base>@sha256:<known-good-digest> --no-build
@@ -156,10 +143,7 @@ sudo bootc status                # staged/booted deployments look right
 Reboot and use the machine normally before re-arming. Then:
 
 ```bash
-sudo remora enable
-# and, if it was moved aside in step 1:
-sudo mv /root/10-remora.conf.disabled /etc/systemd/system/uupd.service.d/10-remora.conf
-sudo systemctl daemon-reload
+sudo remora enable               # timer, plus the uupd hook where uupd is installed
 ```
 
 ---
@@ -169,12 +153,13 @@ sudo systemctl daemon-reload
 | Path / object | What it is | Lifetime |
 |---|---|---|
 | `/etc/remora/remora.yaml` | Manifest: packages, `extra_run`, image tag, schedule | Persistent |
-| `/etc/remora/base` | Pinned base ref (`image@sha256:…`) actually built FROM | **Overwritten in place** by `remora upgrade` / `rebase` — no history |
+| `/etc/remora/base` | Pinned base ref (`image@sha256:…`) actually built FROM | Rewritten by `remora upgrade` / `rebase`; the replaced pin moves to `base.previous` |
+| `/etc/remora/base.previous` | The pin before the last change (one generation) | Rewritten each time the pin moves |
 | `/etc/remora/Containerfile` | Generated; rewritten on every regenerate | Regenerated |
 | `/etc/remora/build_files/`, `system_files/` | Custom scripts and file overlay | Persistent |
 | `/etc/containers/systemd/remora.build` | Quadlet build unit | Rewritten by `remora init` |
 | `/etc/systemd/system/remora-build.timer` | Rebuild schedule (default `*-*-* 04:00:00`) | Rewritten by `remora init` |
-| `/etc/systemd/system/uupd.service.d/10-remora.conf` | uupd hook — **not** removed by `remora disable` | Written by `remora init` when uupd is present |
+| `/etc/systemd/system/uupd.service.d/10-remora.conf` | uupd hook | Written by `remora init` / `enable` when uupd is present; removed by `remora disable` |
 | `localhost/remora:latest` in podman storage | The current local build | Tag moves to each new build |
 | Older local builds (untagged, in podman storage) | Previous images, addressable by digest | **Pruned after 168h** by the quadlet's `ExecStartPost=podman image prune --filter=label=containers.bootc=1 --filter=until=168h` |
 
