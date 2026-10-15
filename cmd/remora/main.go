@@ -33,8 +33,9 @@ Commands:
   apply                Rebase to the built image if its digest changed
   upgrade              Refresh the pinned base digest, then rebuild
   rebase IMAGE         Point the manifest at a new base image, then rebuild
-  enable               Enable the automatic rebuild timer
-  disable              Disable the automatic rebuild timer
+  rebase --previous    Point the manifest back at the base pinned before the last change
+  enable               Enable the automatic rebuild timer (and uupd hook, if uupd is present)
+  disable              Disable the automatic rebuild timer and remove the uupd hook
   status               Show booted image, manifest, and timer state
   generate             Regenerate the Containerfile only (no build)
   shims                Install package-manager shims that redirect
@@ -130,9 +131,27 @@ func run(args []string) error {
 	case "generate":
 		return cmdBuild(dir, false)
 	case "enable":
-		return host.Systemctl("enable", "--now", factory.TimerName)
+		if err := host.Systemctl("enable", "--now", factory.TimerName); err != nil {
+			return err
+		}
+		// Re-arm the uupd hook that `disable` removed, as `init` does.
+		if host.UupdPresent() {
+			if err := factory.InstallUupdHook("/"); err != nil {
+				return err
+			}
+			return host.Systemctl("daemon-reload")
+		}
+		return nil
 	case "disable":
-		return host.Systemctl("disable", "--now", factory.TimerName)
+		if err := host.Systemctl("disable", "--now", factory.TimerName); err != nil {
+			return err
+		}
+		// The uupd drop-in written by `init` drives rebuilds independently of
+		// the timer, so disabling must remove it too.
+		if err := factory.RemoveUupdHook("/"); err != nil {
+			return fmt.Errorf("removing uupd hook: %w", err)
+		}
+		return host.Systemctl("daemon-reload")
 	case "status":
 		return cmdStatus(dir)
 	case "shims":
@@ -388,16 +407,25 @@ func cmdUpgrade(dir string, noBuild bool) error {
 
 // cmdRebase points the manifest at a different base image and rebuilds. The
 // ref is pinned to a digest, resolving it from the registry when the caller
-// did not supply one.
+// did not supply one. "--previous" selects the pin recorded in base.previous.
 func cmdRebase(dir string, args []string, noBuild bool) error {
 	if len(args) != 1 {
-		return fmt.Errorf("rebase takes exactly one image ref")
+		return fmt.Errorf("rebase takes exactly one image ref, or --previous")
 	}
+	imageRef := args[0]
+	if imageRef == "--previous" {
+		imageRef = manifest.LoadBasePrevious(dir)
+		if imageRef == "" {
+			return fmt.Errorf("no previous base pin recorded (%s does not exist)", manifest.BasePreviousPath(dir))
+		}
+		fmt.Println("rebasing to previous base:", imageRef)
+	}
+
 	m, err := manifest.Load(dir)
 	if err != nil {
 		return err
 	}
-	pinned, err := host.PinBase(args[0])
+	pinned, err := host.PinBase(imageRef)
 	if err != nil {
 		return err
 	}

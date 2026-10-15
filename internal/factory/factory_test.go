@@ -200,3 +200,43 @@ func TestQuadletRefreshesContextBeforeBuilding(t *testing.T) {
 		t.Error("the pin refresh must be prefixed with - so a registry outage does not fail the build")
 	}
 }
+
+// RemoveUupdHook undoes InstallUupdHook and is a no-op when the hook is
+// already gone, so `remora disable` is safe to repeat and safe without uupd.
+func TestRemoveUupdHook(t *testing.T) {
+	root := t.TempDir()
+	if err := InstallUupdHook(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveUupdHook(root); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, UupdDropinPath)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("drop-in still present after removal: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+		t.Errorf("empty drop-in dir left behind: %v", err)
+	}
+	if err := RemoveUupdHook(root); err != nil {
+		t.Errorf("second removal = %v, want nil", err)
+	}
+}
+
+// Another package's drop-in in the same directory must survive.
+func TestRemoveUupdHookKeepsOtherDropins(t *testing.T) {
+	root := t.TempDir()
+	if err := InstallUupdHook(root); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(root, filepath.Dir(UupdDropinPath), "20-other.conf")
+	if err := os.WriteFile(other, []byte("[Service]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveUupdHook(root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("unrelated drop-in removed: %v", err)
+	}
+}

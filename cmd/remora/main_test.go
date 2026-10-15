@@ -291,3 +291,12 @@ func TestExePathReturnsAbsolutePath(t *testing.T) {
 		t.Errorf("exePath = %q, want an absolute path", got)
 	}
 }
+
+// rebase --previous must fail clearly, before any host call, when no
+// previous pin has been recorded.
+func TestCmdRebasePreviousWithoutHistory(t *testing.T) {
+	err := cmdRebase(t.TempDir(), []string{"--previous"}, false)
+	if err == nil || !strings.Contains(err.Error(), "no previous base pin") {
+		t.Fatalf("cmdRebase(--previous) error = %v, want missing-history error", err)
+	}
+}

@@ -199,7 +199,8 @@ needed on those systems, and no linkage in either direction: it's one
 | `remora apply` | Rebase to the built image, but only if its digest changed |
 | `remora upgrade` | Refresh the pinned base digest, then rebuild + rebase |
 | `remora rebase IMAGE` | Point the manifest at a new base image, then rebuild |
-| `remora enable` / `disable` | Toggle the automatic rebuild timer |
+| `remora rebase --previous` | Go back to the base pinned before the last upgrade/rebase (kept in `/etc/remora/base.previous`), then rebuild |
+| `remora enable` / `disable` | Turn automatic rebuilds on/off: the timer and, where uupd is installed, the uupd hook |
 | `remora status` | Booted image, manifest summary, timer state |
 | `remora generate` | Regenerate the Containerfile only |
 | `remora shims [--remove]` | Install/remove package-manager interception |
@@ -223,11 +224,9 @@ longer knows how to update you — it sees `containers-storage:localhost/remora:
 and cannot recognize the base image underneath the local layer. Use
 `remora upgrade`, which refreshes the pinned base digest and rebuilds on top
 of it. To go back to a system managed by bootc alone, run
-`bootc rebase <base image>` and `remora disable` — and, on a host where
-`remora init` detected uupd, also remove
-`/etc/systemd/system/uupd.service.d/10-remora.conf`, because `remora disable`
-only turns off remora's own timer and uupd would otherwise keep pulling the
-rebuild in on its own schedule.
+`bootc rebase <base image>` and `remora disable`, which turns off remora's
+timer and removes the uupd hook (`/etc/systemd/system/uupd.service.d/10-remora.conf`)
+that `remora init` writes on hosts with uupd.
 
 ### When a rebuild goes wrong
 
