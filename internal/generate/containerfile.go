@@ -54,12 +54,18 @@ var pms = map[string]pm{
 		// The base image's rpmdb lives in a lower overlayfs layer. rpm's
 		// sqlite backend needs an atomic rename to write, which fails there
 		// ("database disk image is malformed"). Copy the rpmdb up into the
-		// upper (writable) layer before dnf touches it.
+		// upper (writable) layer before dnf touches it. The location is
+		// resolved from rpm itself (/usr/share/rpm on rpm-ostree/bootc,
+		// /usr/lib/sysimage/rpm elsewhere) and symlinks are followed so the
+		// real database directory is copied, not a link to the lower layer.
 		// See https://github.com/tuna-os/remora/issues/44.
-		preInstall: "cp -a /usr/share/rpm /usr/share/rpm.copyup\n" +
-			"rm -rf /usr/share/rpm\n" +
-			"mv /usr/share/rpm.copyup /usr/share/rpm\n" +
-			"rpm --rebuilddb\n",
+		preInstall: "rpmdb_dir=\"$(readlink -f \"$(rpm --eval '%_dbpath')\")\"\n" +
+			"if [ -d \"$rpmdb_dir\" ]; then\n" +
+			"    cp -a \"$rpmdb_dir\" \"$rpmdb_dir.copyup\"\n" +
+			"    rm -rf \"$rpmdb_dir\"\n" +
+			"    mv \"$rpmdb_dir.copyup\" \"$rpmdb_dir\"\n" +
+			"    rpm --rebuilddb\n" +
+			"fi\n",
 		install: func(pkgs []string) string {
 			return "dnf -y install \\\n    " + strings.Join(pkgs, " \\\n    ")
 		},

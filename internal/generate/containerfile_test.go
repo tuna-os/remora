@@ -111,9 +111,10 @@ func TestContainerfileDNFCopiesUpRPMDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"cp -a /usr/share/rpm /usr/share/rpm.copyup",
-		"rm -rf /usr/share/rpm",
-		"mv /usr/share/rpm.copyup /usr/share/rpm",
+		`rpmdb_dir="$(readlink -f "$(rpm --eval '%_dbpath')")"`,
+		`cp -a "$rpmdb_dir" "$rpmdb_dir.copyup"`,
+		`rm -rf "$rpmdb_dir"`,
+		`mv "$rpmdb_dir.copyup" "$rpmdb_dir"`,
 		"rpm --rebuilddb",
 	} {
 		if !strings.Contains(cf, want) {
