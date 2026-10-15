@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/tuna-os/remora/compare/v0.4.3...v0.4.4) (2026-10-15)
+
+
+### Bug Fixes
+
+* **dnf:** copy up rpmdb before install to avoid overlayfs corruption ([#98](https://github.com/tuna-os/remora/issues/98)) ([3e6d4c2](https://github.com/tuna-os/remora/commit/3e6d4c2a63bae7ae83fcf0a1eb58e6979749c009))
+
 ## [0.4.3](https://github.com/tuna-os/remora/compare/v0.4.2...v0.4.3) (2026-09-23)
 
 
