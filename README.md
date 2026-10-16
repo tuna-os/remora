@@ -138,6 +138,89 @@ lockfile: true            # omit for auto; false forces installing from the list
 - **`lockfile`** opts out of lockfile resolution (see below). Leave it unset;
   it exists for when resolution misbehaves against a particular base.
 
+### Examples
+
+Here are realistic configurations for common use cases.
+
+#### Minimal: just packages
+
+Install a few packages with no custom scripts or overlays:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - vim
+  - htop
+  - tmux
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+This is the equivalent of `remora install vim htop tmux` and is all you need for simple package layering. No build scripts or overlays.
+
+#### Service enablement: systemd services + config files
+
+Enable a service and overlay its config file:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - podman
+  - podman-compose
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+```bash
+#!/bin/bash
+# /etc/remora/build_files/10-enable-podman.sh
+# This script runs after packages are installed.
+sudo systemctl enable podman.socket
+```
+
+```bash
+# /etc/remora/system_files/etc/containers/containers.conf
+# Override or add to the base image's containers.conf
+[containers]
+userns_mode="host"
+log_driver="journald"
+```
+
+Directory structure after `remora init`:
+```
+/etc/remora/
+├── remora.yaml                    # manifest
+├── base                           # pinned base image digest (created by remora)
+├── build_files/
+│   └── 10-enable-podman.sh
+└── system_files/
+    └── etc/containers/containers.conf
+```
+
+#### Repository setup + packages (dnf example)
+
+Add a package repository before installing packages from it:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - tailscale
+  - terraform
+extra_run:
+  - dnf config-manager addrepo --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+  - dnf config-manager --set-enabled hashicorp
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+The `extra_run` commands run before the packages are installed, so the repository is ready when `dnf install` is called. For non-dnf bases, replace with package-manager equivalents (e.g., `zypper ar` for zypper, `add-apt-repository` for apt).
+
 ### Lockfiles
 
 Where the base image's package manager can resolve a package list to an exact
