@@ -138,6 +138,91 @@ lockfile: true            # omit for auto; false forces installing from the list
 - **`lockfile`** opts out of lockfile resolution (see below). Leave it unset;
   it exists for when resolution misbehaves against a particular base.
 
+### Examples
+
+Here are realistic configurations for common use cases.
+
+#### Minimal: just packages
+
+Install a few packages with no custom scripts or overlays:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - vim
+  - htop
+  - tmux
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+This is the equivalent of `remora install vim htop tmux` and is all you need for simple package layering. No build scripts or overlays.
+
+#### Service enablement: systemd services + config files
+
+Enable a service and overlay its config file:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - podman
+  - podman-compose
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+```bash
+#!/usr/bin/env bash
+# /etc/remora/build_files/10-enable-podman.sh
+# Runs as root inside the image build, after packages are installed,
+# so no sudo. `systemctl enable` only writes the unit symlinks.
+set -euo pipefail
+systemctl enable podman.socket
+```
+
+```toml
+# /etc/remora/system_files/etc/containers/containers.conf
+# Copied onto / verbatim; overrides /usr/share/containers/containers.conf.
+[containers]
+log_driver = "journald"
+```
+
+The resulting `/etc/remora` tree (`remora init` creates the directories;
+you add the two files):
+```
+/etc/remora/
+├── remora.yaml                    # manifest
+├── base                           # pinned base image digest (created by remora)
+├── build_files/
+│   └── 10-enable-podman.sh
+└── system_files/
+    └── etc/containers/containers.conf
+```
+
+#### Repository setup + packages (dnf example)
+
+Add a package repository before installing packages from it:
+
+```yaml
+# /etc/remora/remora.yaml
+base: ""
+package_manager: ""
+packages:
+  - tailscale
+  - terraform
+extra_run:
+  - dnf config-manager addrepo --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+  - dnf config-manager addrepo --from-repofile=https://rpm.releases.hashicorp.com/fedora/hashicorp.repo
+image: localhost/remora:latest
+schedule: "*-*-* 04:00:00"
+```
+
+The `extra_run` commands run before the packages are installed, so the repository is ready when `dnf install` is called. For non-dnf bases, replace with package-manager equivalents (e.g., `zypper ar` for zypper, `add-apt-repository` for apt).
+
 ### Lockfiles
 
 Where the base image's package manager can resolve a package list to an exact
