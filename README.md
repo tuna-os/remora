@@ -176,21 +176,23 @@ schedule: "*-*-* 04:00:00"
 ```
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # /etc/remora/build_files/10-enable-podman.sh
-# This script runs after packages are installed.
-sudo systemctl enable podman.socket
+# Runs as root inside the image build, after packages are installed,
+# so no sudo. `systemctl enable` only writes the unit symlinks.
+set -euo pipefail
+systemctl enable podman.socket
 ```
 
-```bash
+```toml
 # /etc/remora/system_files/etc/containers/containers.conf
-# Override or add to the base image's containers.conf
+# Copied onto / verbatim; overrides /usr/share/containers/containers.conf.
 [containers]
-userns_mode="host"
-log_driver="journald"
+log_driver = "journald"
 ```
 
-Directory structure after `remora init`:
+The resulting `/etc/remora` tree (`remora init` creates the directories;
+you add the two files):
 ```
 /etc/remora/
 ├── remora.yaml                    # manifest
@@ -214,7 +216,7 @@ packages:
   - terraform
 extra_run:
   - dnf config-manager addrepo --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo
-  - dnf config-manager --set-enabled hashicorp
+  - dnf config-manager addrepo --from-repofile=https://rpm.releases.hashicorp.com/fedora/hashicorp.repo
 image: localhost/remora:latest
 schedule: "*-*-* 04:00:00"
 ```
