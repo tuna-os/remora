@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5](https://github.com/tuna-os/remora/compare/v0.4.4...v0.4.5) (2026-10-16)
+
+
+### Documentation
+
+* add realistic configuration examples to README ([#170](https://github.com/tuna-os/remora/issues/170)) ([f3f5d36](https://github.com/tuna-os/remora/commit/f3f5d36e41cfa8aedb5fc12b00460f918f0eddaa))
+
 ## [0.4.4](https://github.com/tuna-os/remora/compare/v0.4.3...v0.4.4) (2026-10-15)
 
 
