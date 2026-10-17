@@ -37,7 +37,7 @@ Commands:
   enable               Enable the automatic rebuild timer (and uupd hook, if uupd is present)
   disable              Disable the automatic rebuild timer and remove the uupd hook
   status               Show booted image, manifest, and timer state
-  generate             Regenerate the Containerfile only (no build)
+  generate             Reconcile the Containerfile and runtime units (no build)
   shims                Install package-manager shims that redirect
                        'dnf install' etc. to remora (--remove to uninstall)
 
@@ -173,6 +173,14 @@ func exePath() string {
 	return "remora"
 }
 
+// reconcile materializes every generated artifact from the same loaded
+// manifest before a command starts a build or returns updated state.
+func reconcile(dir string, m *manifest.Manifest, wantLock, installUnits bool) error {
+	return buildplan.Reconcile(dir, m, wantLock, installUnits, "/", exePath(), func() error {
+		return host.Systemctl("daemon-reload")
+	})
+}
+
 func cmdInit(dir string) error {
 	m, err := manifest.Load(dir)
 	if os.IsNotExist(err) {
@@ -184,12 +192,7 @@ func cmdInit(dir string) error {
 	} else if err != nil {
 		return err
 	}
-	if err := buildplan.Regenerate(dir, m, false); err != nil {
-		return err
-	}
-	if err := factory.InstallUnits(m, dir, "/", exePath(), func() error {
-		return host.Systemctl("daemon-reload")
-	}); err != nil {
+	if err := reconcile(dir, m, false, true); err != nil {
 		return err
 	}
 	fmt.Printf("installed %s and %s\n", factory.QuadletPath, factory.TimerPath)
@@ -232,7 +235,7 @@ func cmdModify(dir string, add, remove []string, noBuild bool) error {
 	if err := m.Save(dir); err != nil {
 		return err
 	}
-	if err := buildplan.Regenerate(dir, m, !noBuild); err != nil {
+	if err := reconcile(dir, m, !noBuild, false); err != nil {
 		return err
 	}
 	if noBuild {
@@ -262,7 +265,7 @@ func cmdBuild(dir string, build bool) error {
 	if err != nil {
 		return err
 	}
-	if err := buildplan.Regenerate(dir, m, build); err != nil {
+	if err := reconcile(dir, m, build, false); err != nil {
 		return err
 	}
 	if !build {
@@ -391,12 +394,12 @@ func cmdUpgrade(dir string, noBuild bool) error {
 		}
 		fmt.Printf("base image updated:\n  from %s\n  to   %s\n", old, updated)
 	}
-	// Regenerate even with --no-build. The pin just moved, so the
+	// Reconcile even with --no-build. The pin just moved, so the
 	// Containerfile's FROM is now stale, and the quadlet's ExecStartPre runs
-	// exactly this command immediately before building — leaving the context
-	// unregenerated would rebuild the old base forever. --no-build means
-	// "do not start the build service", not "leave the context inconsistent".
-	if err := buildplan.Regenerate(dir, m, true); err != nil {
+	// exactly this command immediately before building — leaving generated
+	// state stale would rebuild the old base forever. --no-build means "do not
+	// start the build service", not "leave generated state inconsistent".
+	if err := reconcile(dir, m, true, false); err != nil {
 		return err
 	}
 	if noBuild {
@@ -437,9 +440,9 @@ func cmdRebase(dir string, args []string, noBuild bool) error {
 		return err
 	}
 	fmt.Println("base image set to", pinned)
-	// As in cmdUpgrade: the base changed, so the context must be rewritten
-	// whether or not a build follows.
-	if err := buildplan.Regenerate(dir, m, true); err != nil {
+	// As in cmdUpgrade: the base changed, so generated state must be
+	// reconciled whether or not a build follows.
+	if err := reconcile(dir, m, true, false); err != nil {
 		return err
 	}
 	if noBuild {

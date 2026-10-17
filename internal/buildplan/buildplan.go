@@ -1,9 +1,10 @@
-// Package buildplan resolves the inputs for remora's generated build context.
+// Package buildplan reconciles a manifest into remora's generated state.
 //
 // It owns the policy that connects a manifest to a pinned base image, the
-// package manager of that image, and an optional resolved package lockfile.
-// Keeping that policy here prevents the CLI transport from becoming the build
-// state machine.
+// package manager of that image, an optional resolved package lockfile, and
+// the runtime units that build the desired local image on its desired
+// schedule. Keeping that policy here prevents the CLI transport from becoming
+// the build state machine.
 package buildplan
 
 import (
@@ -64,8 +65,11 @@ func ResolvePM(m *manifest.Manifest, base string) (string, error) {
 	return pm, nil
 }
 
-// Regenerate resolves the build inputs and rewrites the generated context.
-func Regenerate(dir string, m *manifest.Manifest, wantLock bool) error {
+// Reconcile resolves the build inputs and rewrites the complete generated
+// state: build context, quadlet, and timer. installUnits creates runtime units
+// during initialization; later reconciliations update installed units. The
+// default state directory always restores missing units on a managed host.
+func Reconcile(dir string, m *manifest.Manifest, wantLock, installUnits bool, root, exe string, reload func() error) error {
 	base, err := ResolveBase(dir, m)
 	if err != nil {
 		return err
@@ -89,7 +93,10 @@ func Regenerate(dir string, m *manifest.Manifest, wantLock bool) error {
 	}
 	fmt.Printf("generated %s/Containerfile (base=%s, pm=%s, %d packages, %s)\n",
 		dir, base, pm, len(m.Packages), how)
-	return nil
+	if installUnits || dir == manifest.DefaultDir {
+		return factory.InstallUnits(m, dir, root, exe, reload)
+	}
+	return factory.UpdateUnits(m, dir, root, exe, reload)
 }
 
 // ResolveLock creates a fresh lockfile or clears stale lock state on fallback.

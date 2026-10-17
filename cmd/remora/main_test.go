@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/tuna-os/remora/internal/buildplan"
+	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/manifest"
 	"github.com/tuna-os/remora/internal/resolve"
 )
@@ -190,6 +191,61 @@ func TestResolveLockRespectsOptOut(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+func TestReconcileUpdatesRuntimeUnitsFromManifest(t *testing.T) {
+	dir := t.TempDir()
+	root := t.TempDir()
+	if err := manifest.SaveBase(dir, "quay.io/fedora/fedora-bootc@sha256:abc"); err != nil {
+		t.Fatal(err)
+	}
+	m := &manifest.Manifest{
+		PackageManager: "dnf",
+		Image:          "localhost/remora:first",
+		Schedule:       "daily",
+	}
+	reloads := 0
+	installUnits := true
+	reconcile := func() {
+		t.Helper()
+		if err := buildplan.Reconcile(dir, m, false, installUnits, root, "/usr/bin/remora", func() error {
+			reloads++
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		installUnits = false
+	}
+	readUnit := func(path string) string {
+		t.Helper()
+		content, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(content)
+	}
+
+	reconcile()
+	if reloads != 1 {
+		t.Fatalf("initial reconciliation reloaded systemd %d times, want 1", reloads)
+	}
+	reconcile()
+	if reloads != 1 {
+		t.Fatalf("unchanged reconciliation reloaded systemd; got %d reloads, want 1", reloads)
+	}
+
+	m.Image = "localhost/remora:second"
+	m.Schedule = "weekly"
+	reconcile()
+	if reloads != 2 {
+		t.Fatalf("changed reconciliation produced %d reloads, want 2", reloads)
+	}
+	if got, want := readUnit(factory.QuadletPath), factory.Quadlet(m, dir, "/usr/bin/remora"); got != want {
+		t.Errorf("quadlet not reconciled from changed image:\n got %q\nwant %q", got, want)
+	}
+	if got, want := readUnit(factory.TimerPath), factory.Timer(m); got != want {
+		t.Errorf("timer not reconciled from changed schedule:\n got %q\nwant %q", got, want)
+	}
+}
 
 // cmdStatus never mutates anything — it only reads the manifest and shells
 // out to bootc/systemctl for informational output — so it is safe to call
