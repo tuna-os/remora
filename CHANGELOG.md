@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.6](https://github.com/tuna-os/remora/compare/v0.4.5...v0.4.6) (2026-10-17)
+
+
+### Bug Fixes
+
+* reconcile runtime units with manifest ([#172](https://github.com/tuna-os/remora/issues/172)) ([75363dd](https://github.com/tuna-os/remora/commit/75363dda2b3d1b6a62f47437132d3ec20a23e44b))
+
+
+### Documentation
+
+* guide donors to online round-robin Hive setup (#contribute) ([af33b4f](https://github.com/tuna-os/remora/commit/af33b4fe0db792ed1bb3421d1f92170e17c2b2f6))
+
 ## [0.4.5](https://github.com/tuna-os/remora/compare/v0.4.4...v0.4.5) (2026-10-16)
 
 
