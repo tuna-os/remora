@@ -6,6 +6,7 @@
 package factory
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -150,19 +151,64 @@ func RemoveUupdHook(root string) error {
 	return nil
 }
 
-// InstallUnits writes the quadlet and timer under root (root == "/" for the
-// real system; tests pass t.TempDir()) and reloads systemd.
+// UpdateUnits reconciles units only when remora runtime units are already
+// installed. This keeps generate usable with an isolated --dir while ensuring
+// an initialized host's units continue to follow its manifest.
+func UpdateUnits(m *manifest.Manifest, dir, root, exe string, reload func() error) error {
+	installed, err := unitsInstalled(root)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return nil
+	}
+	return InstallUnits(m, dir, root, exe, reload)
+}
+
+func unitsInstalled(root string) (bool, error) {
+	for _, path := range []string{QuadletPath, TimerPath} {
+		if _, err := os.Stat(filepath.Join(root, path)); err == nil {
+			return true, nil
+		} else if !os.IsNotExist(err) {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
+// InstallUnits reconciles the quadlet and timer under root (root == "/" for
+// the real system; tests pass t.TempDir()). It only rewrites changed units and
+// reloads systemd when at least one unit changed.
 func InstallUnits(m *manifest.Manifest, dir, root, exe string, reload func() error) error {
 	quadletPath := filepath.Join(root, QuadletPath)
 	timerPath := filepath.Join(root, TimerPath)
-	if err := os.MkdirAll(filepath.Dir(quadletPath), 0o755); err != nil {
+	quadletChanged, err := writeIfChanged(quadletPath, []byte(Quadlet(m, dir, exe)))
+	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(quadletPath, []byte(Quadlet(m, dir, exe)), 0o644); err != nil {
+	timerChanged, err := writeIfChanged(timerPath, []byte(Timer(m)))
+	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(timerPath, []byte(Timer(m)), 0o644); err != nil {
-		return err
+	if !quadletChanged && !timerChanged {
+		return nil
 	}
 	return reload()
+}
+
+func writeIfChanged(path string, content []byte) (bool, error) {
+	current, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(current, content) {
+		return false, nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }

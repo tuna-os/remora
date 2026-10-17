@@ -287,7 +287,7 @@ needed on those systems, and no linkage in either direction: it's one
 | `remora rebase --previous` | Go back to the base pinned before the last upgrade/rebase (kept in `/etc/remora/base.previous`), then rebuild |
 | `remora enable` / `disable` | Turn automatic rebuilds on/off: the timer and, where uupd is installed, the uupd hook |
 | `remora status` | Booted image, manifest summary, timer state |
-| `remora generate` | Regenerate the Containerfile only |
+| `remora generate` | Reconcile the Containerfile, build quadlet, and timer without building |
 | `remora shims [--remove]` | Install/remove package-manager interception |
 
 `--no-build` on install/remove/upgrade/rebase edits state without triggering a
