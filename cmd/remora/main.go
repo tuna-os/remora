@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tuna-os/remora/internal/bootc"
 	"github.com/tuna-os/remora/internal/buildplan"
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
@@ -313,7 +314,7 @@ func cmdShims(dir string, remove bool) error {
 }
 
 func cmdStatus(dir string) error {
-	if booted, err := host.BootedImage(); err == nil {
+	if booted, err := bootc.BootedImage(); err == nil {
 		fmt.Println("booted image: ", booted)
 	} else {
 		fmt.Println("booted image:  (not a bootc system?)")
@@ -354,7 +355,7 @@ func cmdApply(dir string, apply bool, softReboot string) error {
 	if digest == "" {
 		return fmt.Errorf("no local image %s — run `remora build` first", tag)
 	}
-	current, err := host.StagedOrBootedDigest()
+	current, err := bootc.StagedOrBootedDigest()
 	if err != nil {
 		return err
 	}
@@ -364,7 +365,7 @@ func cmdApply(dir string, apply bool, softReboot string) error {
 	}
 	ref := tag + "@" + digest
 	fmt.Println("switching to", ref)
-	return host.BootcSwitch(ref, apply, softReboot)
+	return bootc.BootcSwitch(ref, apply, softReboot)
 }
 
 // cmdUpgrade refreshes the pinned base digest from the registry and, unless
