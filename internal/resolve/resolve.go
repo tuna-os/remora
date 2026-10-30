@@ -112,7 +112,7 @@ func (d dnfResolver) Resolve(base, dir string, pkgs []string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(out)
+	defer func() { _ = os.RemoveAll(out) }()
 
 	args := []string{
 		"run", "--rm", "--entrypoint", "",

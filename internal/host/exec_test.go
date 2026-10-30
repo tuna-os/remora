@@ -41,7 +41,9 @@ func TestUupdPresent_WhenMissing(t *testing.T) {
 func TestSystemctl_Success(t *testing.T) {
 	binDir := putOnPath(t, "systemctl", "#!/bin/sh\nexit 0\n")
 	logPath := filepath.Join(binDir, "systemctl.log")
-	os.WriteFile(logPath, []byte("#!/bin/sh\necho \"$@\" > \""+logPath+"\"\nexit 0\n"), 0o755)
+	if err := os.WriteFile(logPath, []byte("#!/bin/sh\necho \"$@\" > \""+logPath+"\"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := Systemctl("daemon-reload"); err != nil {
 		t.Fatalf("Systemctl: %v", err)
@@ -53,13 +55,4 @@ func TestSystemctl_Error(t *testing.T) {
 	if err := Systemctl("start", "remora-build.timer"); err == nil {
 		t.Fatal("Systemctl with failing systemctl: expected error")
 	}
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
