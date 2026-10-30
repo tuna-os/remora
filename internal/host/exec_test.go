@@ -1,10 +1,9 @@
 package host
 
-// Tests for the exec-backed host helpers that had zero coverage:
-// BootedImage (via a fake bootc in PATH), UupdPresent (fake systemctl),
-// and Systemctl. osReleaseID is covered through /etc/os-release reads
-// only where the environment permits; the pure detectPM logic is already
-// tested in host_test.go.
+// Tests for the exec-backed host helpers:
+// UupdPresent and Systemctl. osReleaseID is covered through /etc/os-release
+// reads only where the environment permits; the pure detectPM logic is
+// already tested in host_test.go.
 
 import (
 	"os"
@@ -23,36 +22,6 @@ func putOnPath(t *testing.T, name, script string) string {
 	t.Cleanup(func() { os.Setenv("PATH", old) })
 	os.Setenv("PATH", binDir+":"+old)
 	return binDir
-}
-
-func TestBootedImage(t *testing.T) {
-	putOnPath(t, "bootc", `#!/bin/sh
-cat <<'EOF'
-{"status":{"booted":{"image":{"image":{"image":"ghcr.io/tuna-os/yellowfin:gnome"}}}}}
-EOF
-`)
-	got, err := BootedImage()
-	if err != nil {
-		t.Fatalf("BootedImage: %v", err)
-	}
-	if got != "ghcr.io/tuna-os/yellowfin:gnome" {
-		t.Errorf("BootedImage = %q", got)
-	}
-}
-
-func TestBootedImage_NotABootcSystem(t *testing.T) {
-	// bootc absent from PATH → exec fails → wrapped error.
-	old := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", old) })
-	os.Setenv("PATH", "/nonexistent-dir")
-
-	_, err := BootedImage()
-	if err == nil {
-		t.Fatal("BootedImage without bootc: expected error")
-	}
-	if !contains(err.Error(), "bootc status") {
-		t.Errorf("error = %v, want bootc status context", err)
-	}
 }
 
 func TestUupdPresent_WhenInstalled(t *testing.T) {

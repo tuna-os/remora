@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/tuna-os/remora/internal/bootc"
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
 	"github.com/tuna-os/remora/internal/manifest"
@@ -27,7 +28,7 @@ func ResolveBase(dir string, m *manifest.Manifest) (string, error) {
 		}
 	}
 	if want == "" {
-		ref, digest, err := host.BootedImageDigest()
+		ref, digest, err := bootc.BootedImageDigest()
 		if err != nil {
 			return "", err
 		}
