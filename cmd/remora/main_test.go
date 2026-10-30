@@ -312,9 +312,7 @@ func putOnPath(t *testing.T, name, script string) {
 	if err := os.WriteFile(filepath.Join(binDir, name), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	old := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", old) })
-	os.Setenv("PATH", binDir+":"+old)
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 }
 
 // cmdStatus's fallback when bootc itself fails (not a bootc host, or no bootc
