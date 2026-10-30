@@ -107,9 +107,7 @@ func TestWriteAtomicOverwritesExisting(t *testing.T) {
 // Available must not attempt to run podman at all when podman is not on
 // PATH — the common case on a system without the tool installed.
 func TestDnfResolverAvailable_NoPodman(t *testing.T) {
-	old := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", old) })
-	os.Setenv("PATH", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
 
 	if (dnfResolver{}).Available("base@sha256:abc") {
 		t.Error("Available with no podman on PATH: want false")
@@ -124,9 +122,7 @@ func TestDnfResolverAvailable_PodmanProbeFails(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(binDir, "podman"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	old := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", old) })
-	os.Setenv("PATH", binDir)
+	t.Setenv("PATH", binDir)
 
 	if (dnfResolver{}).Available("base@sha256:abc") {
 		t.Error("Available with a failing probe: want false")

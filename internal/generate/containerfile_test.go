@@ -90,7 +90,7 @@ func TestContainerfileLayerSplit(t *testing.T) {
 	overlay := strings.Index(cf, "cp -avf /ctx/system_files/. /")
 	pkgs := strings.Index(cf, "dnf -y install")
 	scripts := strings.Index(cf, "for script in /ctx/build_files/*.sh")
-	if !(overlay < pkgs && pkgs < scripts) {
+	if overlay >= pkgs || pkgs >= scripts {
 		t.Fatalf("layer order must be overlay < packages < scripts, got %d/%d/%d", overlay, pkgs, scripts)
 	}
 	// extra_run sets up repositories, so it must precede the install.
