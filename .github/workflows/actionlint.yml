@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: workflow-lint-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   actionlint:
