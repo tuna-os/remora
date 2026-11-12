@@ -14,13 +14,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
-      - uses: goreleaser/goreleaser-action@v7
+          cache: false
+      - uses: goreleaser/goreleaser-action@v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
