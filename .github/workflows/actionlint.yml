@@ -20,7 +20,9 @@ jobs:
   actionlint:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: Validate GitHub Actions workflows
         # Existing repositories own their shellcheck policy separately. This
         # keeps actionlint focused on workflow syntax and expressions.
