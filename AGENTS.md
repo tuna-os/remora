@@ -53,13 +53,23 @@ just check      # gofmt -l must be empty, go vet ./..., go test ./... -count=1
 go build ./...
 ```
 
-`ci.yml` runs exactly that plus the three smoke blocks, and gates on a
-`required-checks` job with `if: always()`, so a skipped or cancelled `test`
-job reports failure rather than an absent check.
+`ci.yml` runs exactly that plus `golangci-lint` and the three smoke blocks,
+and gates on a `required-checks` job with `if: always()`, so a skipped or
+cancelled `test` job reports failure rather than an absent check.
 
-> **Configured but not enforced.** `.golangci.yml` exists, but no workflow
-> runs `golangci-lint` — `just lint` is `go vet` alone. `codecov.yml` sets
-> coverage targets, but nothing uploads coverage. Neither is a gate today.
+`golangci-lint` (configured by `.golangci.yml`, version pinned in `ci.yml`) is
+the one CI check `just check` does not cover — `just lint` is `go vet` alone.
+Run it locally with the version `ci.yml` pins, from the repository root
+(`go install` puts it in `$(go env GOPATH)/bin`, which must be on `PATH`):
+
+```bash
+v=$(awk '/golangci-lint-action@/{f=1} f&&/version:/{print $2; exit}' .github/workflows/ci.yml)
+go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${v}"
+golangci-lint run
+```
+
+> **Configured but not enforced.** `codecov.yml` sets coverage targets, but
+> nothing uploads coverage. It is not a gate today.
 
 `CONTRIBUTING.md` requires a DCO sign-off (`git commit -s`) on every commit;
 no workflow checks it, so it is a convention a human must honour rather than

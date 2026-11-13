@@ -47,6 +47,17 @@ just check
 
 `just check` runs formatting verification (`gofmt`), static analysis (`go vet`), and unit testing (`go test`).
 
+CI also runs `golangci-lint`, which `just check` does not. To run it locally,
+install the version pinned in `.github/workflows/ci.yml` and run it from the
+repository root (`go install` puts it in `$(go env GOPATH)/bin`, which must be
+on `PATH`):
+
+```bash
+v=$(awk '/golangci-lint-action@/{f=1} f&&/version:/{print $2; exit}' .github/workflows/ci.yml)
+go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${v}"
+golangci-lint run
+```
+
 ### Using `go` CLI directly
 
 - **Formatting**:
