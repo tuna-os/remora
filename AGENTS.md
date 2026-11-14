@@ -68,6 +68,29 @@ go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${v}"
 golangci-lint run
 ```
 
+### Workflow checks
+
+Two more workflows check the workflows themselves. Neither runs from
+`just check`:
+
+- **`actions-security.yml`** runs on every pull request and on pushes to
+  `main`. Its `lockfile` job runs `gh actions-lock --verify` (the
+  [`github/gh-actions-lock`](https://github.com/github/gh-actions-lock)
+  extension, pinned in that job), which fails when
+  `.github/workflows/actions.lock` no longer matches the `uses:` lines in the
+  workflows. Its `zizmor` job runs the zizmor workflow security linter and
+  fails on any finding.
+- **`actionlint.yml`** runs on pull requests and pushes that change
+  `.github/workflows/**`, and in the merge queue.
+
+`actions.lock` is generated. Do not edit it by hand. After you add a workflow
+or change any `uses:` line, including moving a tag pin to a commit SHA or
+back, run `gh actions-lock` from the repository root and commit the updated
+lockfile in the same pull request. `gh actions-lock --verify-local` is an
+offline check that every `uses:` has a lockfile entry. A zizmor finding that
+is intentional gets an inline `# zizmor: ignore[<rule>] <reason>` comment on
+that line, as `ci.yml` does for `setup-just`.
+
 > **Configured but not enforced.** `codecov.yml` sets coverage targets, but
 > nothing uploads coverage. It is not a gate today.
 
@@ -95,7 +118,13 @@ something CI will catch.
 
 ## Releases
 
-Tag-driven: pushing `v*` runs goreleaser. Version bumps and the changelog come
-from release-please (`release-please-config.json`,
-`.release-please-manifest.json`), so hand-editing `CHANGELOG.md` or a version
-string fights the automation.
+Driven by release-please (`release-please-config.json`,
+`.release-please-manifest.json`), not by pushing tags. Merging the
+`chore(main): release X.Y.Z` pull request makes release-please create the
+`vX.Y.Z` tag and GitHub release, and the `goreleaser` job in
+`release-please.yml` then attaches the binaries and `checksums.txt`. A tag
+created with `GITHUB_TOKEN` does not start other workflows, so `release.yml`
+runs goreleaser only for a `v*` tag pushed by hand, which is the escape hatch
+outside the normal flow. Hand-editing `CHANGELOG.md` or a version string
+fights the automation. See [`CONTRIBUTING.md`](CONTRIBUTING.md#releases) for
+the full sequence.
