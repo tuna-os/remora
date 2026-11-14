@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7](https://github.com/tuna-os/remora/compare/v0.4.6...v0.4.7) (2026-11-13)
+
+
+### Documentation
+
+* record golangci-lint as an enforced CI check ([#182](https://github.com/tuna-os/remora/issues/182)) ([681f478](https://github.com/tuna-os/remora/commit/681f478d71400870597351117c945f33d859b0fe))
+
 ## [0.4.6](https://github.com/tuna-os/remora/compare/v0.4.5...v0.4.6) (2026-10-17)
 
 
