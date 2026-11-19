@@ -15,6 +15,7 @@ import (
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
 	"github.com/tuna-os/remora/internal/manifest"
+	"github.com/tuna-os/remora/internal/registry"
 	"github.com/tuna-os/remora/internal/resolve"
 )
 
@@ -22,7 +23,7 @@ import (
 func ResolveBase(dir string, m *manifest.Manifest) (string, error) {
 	want := m.Base
 	if pinned := manifest.LoadBase(dir); pinned != "" {
-		name, _, _ := host.SplitDigest(pinned)
+		name, _, _ := registry.SplitDigest(pinned)
 		if want == "" || name == want || pinned == want {
 			return pinned, nil
 		}
@@ -40,7 +41,7 @@ func ResolveBase(dir string, m *manifest.Manifest) (string, error) {
 		}
 		return ref, nil
 	}
-	pinned, err := host.PinBase(want)
+	pinned, err := registry.PinBase(want)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "remora: could not pin %s to a digest (%v); building from the unpinned ref\n", want, err)
 		return want, nil
@@ -60,8 +61,8 @@ func UpgradeBase(dir string, m *manifest.Manifest) (old, updated string, err err
 	if err != nil {
 		return "", "", err
 	}
-	name, _, _ := host.SplitDigest(old)
-	digest, err := host.LatestDigest(name)
+	name, _, _ := registry.SplitDigest(old)
+	digest, err := registry.LatestDigest(name)
 	if err != nil {
 		return "", "", err
 	}
@@ -79,11 +80,11 @@ func UpgradeBase(dir string, m *manifest.Manifest) (old, updated string, err err
 // that fails. The manifest records the image name, never the digest, so a
 // later upgrade can move the pin; the pin file records the digest.
 func RebaseBase(dir string, m *manifest.Manifest, imageRef string) (string, error) {
-	pinned, err := host.PinBase(imageRef)
+	pinned, err := registry.PinBase(imageRef)
 	if err != nil {
 		return "", err
 	}
-	m.Base, _, _ = host.SplitDigest(pinned)
+	m.Base, _, _ = registry.SplitDigest(pinned)
 	if err := m.Save(dir); err != nil {
 		return "", err
 	}
@@ -101,7 +102,7 @@ func RebaseBase(dir string, m *manifest.Manifest, imageRef string) (string, erro
 // does not mint a fresh deployment.
 func ApplyPlan(m *manifest.Manifest) (ref string, noop bool, err error) {
 	tag := m.ImageTag()
-	digest, err := host.LocalDigest(tag)
+	digest, err := registry.LocalDigest(tag)
 	if err != nil {
 		return "", false, err
 	}

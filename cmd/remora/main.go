@@ -18,6 +18,7 @@ import (
 	"github.com/tuna-os/remora/internal/factory"
 	"github.com/tuna-os/remora/internal/host"
 	"github.com/tuna-os/remora/internal/manifest"
+	"github.com/tuna-os/remora/internal/registry"
 	"github.com/tuna-os/remora/internal/shim"
 )
 
@@ -352,7 +353,7 @@ func cmdApply(dir string, apply bool, softReboot string) error {
 		return err
 	}
 	if noop {
-		tag, digest, _ := host.SplitDigest(ref)
+		tag, digest, _ := registry.SplitDigest(ref)
 		fmt.Printf("%s is already staged or booted (%s) — nothing to do\n", tag, digest)
 		return nil
 	}
