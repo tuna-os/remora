@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/tuna-os/remora/internal/pkgmgr"
 )
 
 // Dir is where shims are installed.
@@ -46,7 +48,7 @@ func names(pm string) []string {
 
 func allNames() []string {
 	var result []string
-	for _, pm := range []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} {
+	for _, pm := range pkgmgr.Families() {
 		for _, name := range names(pm) {
 			if !slices.Contains(result, name) {
 				result = append(result, name)

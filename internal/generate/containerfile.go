@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/tuna-os/remora/internal/manifest"
+	"github.com/tuna-os/remora/internal/pkgmgr"
 )
 
 // pm holds the per-package-manager fragments of the generated RUN script.
@@ -120,7 +121,7 @@ var pms = map[string]pm{
 }
 
 // SupportedPMs lists the package managers Containerfile generation handles.
-func SupportedPMs() []string { return []string{"dnf", "zypper", "pacman", "apt", "portage", "apk"} }
+func SupportedPMs() []string { return pkgmgr.Families() }
 
 // Containerfile renders the full Containerfile for m. base is the resolved
 // base image ref (never empty — the caller resolves "follow booted image",

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tuna-os/remora/internal/pkgmgr"
 	"gopkg.in/yaml.v3"
 )
 
@@ -125,14 +126,13 @@ func (m *Manifest) RemovePackages(pkgs []string) []string {
 	return removed
 }
 
-var validPMs = []string{"", "dnf", "zypper", "pacman", "apt", "portage", "apk"}
-
 // Validate rejects manifests the generator can't act on. Package names are
 // checked against shell metacharacters because they are interpolated into
 // the generated Containerfile RUN line.
 func (m *Manifest) Validate() error {
-	if !slices.Contains(validPMs, m.PackageManager) {
-		return fmt.Errorf("package_manager must be one of dnf, zypper, pacman, apt, portage, apk (or empty for auto), got %q", m.PackageManager)
+	if m.PackageManager != "" && !slices.Contains(pkgmgr.Families(), m.PackageManager) {
+		return fmt.Errorf("package_manager must be one of %s (or empty for auto), got %q",
+			strings.Join(pkgmgr.Families(), ", "), m.PackageManager)
 	}
 	for _, p := range m.Packages {
 		if strings.ContainsAny(p, " \t\n'\"`$&|;<>(){}\\") {
