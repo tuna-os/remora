@@ -51,6 +51,70 @@ func ResolveBase(dir string, m *manifest.Manifest) (string, error) {
 	return pinned, nil
 }
 
+// UpgradeBase moves the base pin to the digest the registry currently serves
+// for the pinned image name. It returns the previous pin and the new one; the
+// pin file is rewritten only when they differ, so an up-to-date base leaves
+// base.previous naming the last distinct base.
+func UpgradeBase(dir string, m *manifest.Manifest) (old, updated string, err error) {
+	old, err = ResolveBase(dir, m)
+	if err != nil {
+		return "", "", err
+	}
+	name, _, _ := host.SplitDigest(old)
+	digest, err := host.LatestDigest(name)
+	if err != nil {
+		return "", "", err
+	}
+	updated = name + "@" + digest
+	if updated != old {
+		if err := manifest.SaveBase(dir, updated); err != nil {
+			return "", "", err
+		}
+	}
+	return old, updated, nil
+}
+
+// RebaseBase points the manifest at imageRef and pins it. A ref without a
+// digest is resolved from the registry first, and nothing is written when
+// that fails. The manifest records the image name, never the digest, so a
+// later upgrade can move the pin; the pin file records the digest.
+func RebaseBase(dir string, m *manifest.Manifest, imageRef string) (string, error) {
+	pinned, err := host.PinBase(imageRef)
+	if err != nil {
+		return "", err
+	}
+	m.Base, _, _ = host.SplitDigest(pinned)
+	if err := m.Save(dir); err != nil {
+		return "", err
+	}
+	if err := manifest.SaveBase(dir, pinned); err != nil {
+		return "", err
+	}
+	return pinned, nil
+}
+
+// ApplyPlan decides what `remora apply` switches to. ref is the locally built
+// image pinned to its digest (tag@sha256:...), never a bare tag: bootc must
+// see a distinct target when new content lands under an unchanged tag. noop
+// is true when that digest is already the staged deployment, or the booted
+// one when nothing is staged, so a rebuild that reproduced the same digest
+// does not mint a fresh deployment.
+func ApplyPlan(m *manifest.Manifest) (ref string, noop bool, err error) {
+	tag := m.ImageTag()
+	digest, err := host.LocalDigest(tag)
+	if err != nil {
+		return "", false, err
+	}
+	if digest == "" {
+		return "", false, fmt.Errorf("no local image %s — run `remora build` first", tag)
+	}
+	current, err := bootc.StagedOrBootedDigest()
+	if err != nil {
+		return "", false, err
+	}
+	return tag + "@" + digest, current != "" && current == digest, nil
+}
+
 // ResolvePM selects the package manager belonging to the selected base image.
 func ResolvePM(m *manifest.Manifest, base string) (string, error) {
 	if m.PackageManager != "" {
