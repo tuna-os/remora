@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tuna-os/remora/internal/pkgmgr"
 )
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -72,5 +74,16 @@ func TestOnCalendar_DefaultAndCustom(t *testing.T) {
 	}
 	if got := (&Manifest{Schedule: "daily"}).OnCalendar(); got != "daily" {
 		t.Errorf("OnCalendar() custom = %q", got)
+	}
+}
+
+// Every family internal/pkgmgr names must be accepted as package_manager,
+// and the empty value still means auto-detect.
+func TestValidateAcceptsEveryFamily(t *testing.T) {
+	for _, f := range append([]string{""}, pkgmgr.Families()...) {
+		m := &Manifest{PackageManager: f}
+		if err := m.Validate(); err != nil {
+			t.Errorf("package_manager %q rejected: %v", f, err)
+		}
 	}
 }
