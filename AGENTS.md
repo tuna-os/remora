@@ -9,7 +9,7 @@ and [`internal/resolve`](internal/resolve/resolve.go), and
 [`README.md`](README.md) for the user-facing model. This file covers what
 those do *not* say: what CI actually enforces, and what breaks quietly.
 
-## The invariant that has no unit test: the no-op rebuild
+## The invariant everything rests on: the no-op rebuild
 
 remora's whole value rests on *identical inputs producing an identical image
 digest*, so a nightly rebuild that changed nothing skips the `bootc switch`.
@@ -27,8 +27,13 @@ harmless and passes `go test`:
    the same image specification every run, so new content under an unchanged
    tag may never be staged.
 
-Lose any of these and nothing fails — the timer just quietly mints a fresh
-deployment every night to install the same packages again. That is why
+Lose any of these and the build still succeeds — the timer just quietly mints
+a fresh deployment every night to install the same packages again. Unit tests
+pin each piece where its decision lives: the Containerfile shape in
+`internal/generate`, and base pinning (`ResolveBase`, `UpgradeBase`,
+`RebaseBase`) and the `apply` no-op (`ApplyPlan`) in `internal/buildplan`.
+Keep those decisions in `internal/buildplan`, not in `cmd/remora`, where no
+test reaches them. CI also guards the shape end to end: that is why
 `ci.yml` carries three shell smoke blocks asserting the *shape* of generated
 output: a `sha256:` in `FROM`, exactly three `<<'REMORA_EOF'` heredocs, no
 `remora.lock.yaml` reference when resolution did not run, and `apply` exiting

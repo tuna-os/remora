@@ -302,3 +302,185 @@ func TestReconcileUpdatesRuntimeUnitsFromManifest(t *testing.T) {
 		t.Errorf("timer not reconciled from changed schedule:\n got %q\nwant %q", got, want)
 	}
 }
+
+// bootcStatus stubs `bootc status --json` with the given staged and booted
+// image digests; "" omits that deployment.
+func bootcStatus(t *testing.T, staged, booted string) {
+	t.Helper()
+	deployment := func(digest string) string {
+		return `{"image":{"image":{"image":"localhost/remora:latest"},"imageDigest":"` + digest + `"}}`
+	}
+	var parts []string
+	if staged != "" {
+		parts = append(parts, `"staged":`+deployment(staged))
+	}
+	if booted != "" {
+		parts = append(parts, `"booted":`+deployment(booted))
+	}
+	putOnPath(t, "bootc", "#!/bin/sh\ncat <<'EOF'\n{\"status\":{"+strings.Join(parts, ",")+"}}\nEOF\n")
+}
+
+// The no-op rebuild: a rebuild that reproduced the digest already staged (or
+// booted, when nothing is staged) must not switch again, and every switch
+// target carries the digest, never the bare tag.
+func TestApplyPlanSkipsSwitchWhenDigestUnchanged(t *testing.T) {
+	cases := []struct {
+		name, staged, booted string
+		noop                 bool
+	}{
+		{"booted matches, nothing staged", "", "sha256:built", true},
+		{"staged matches", "sha256:built", "sha256:old", true},
+		// The staged deployment is what boots next, so it decides even when
+		// the booted one already matches.
+		{"staged differs, booted matches", "sha256:other", "sha256:built", false},
+		{"booted differs, nothing staged", "", "sha256:old", false},
+		// bootc reporting no digest is not a match.
+		{"no digest reported", "", "", false},
+	}
+	for _, c := range cases {
+		putOnPath(t, "podman", "#!/bin/sh\necho sha256:built\n")
+		bootcStatus(t, c.staged, c.booted)
+		ref, noop, err := ApplyPlan(&manifest.Manifest{})
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if noop != c.noop {
+			t.Errorf("%s: noop = %v, want %v", c.name, noop, c.noop)
+		}
+		if want := "localhost/remora:latest@sha256:built"; ref != want {
+			t.Errorf("%s: ref = %q, want the digest-pinned %q", c.name, ref, want)
+		}
+	}
+}
+
+// Without a locally built image there is nothing to switch to, and the
+// deployment is never consulted.
+func TestApplyPlanRequiresBuiltImage(t *testing.T) {
+	putOnPath(t, "podman", "#!/bin/sh\nexit 125\n")
+	putOnPath(t, "bootc", "#!/bin/sh\nexit 1\n")
+	_, _, err := ApplyPlan(&manifest.Manifest{Image: "localhost/remora:test"})
+	if err == nil || !strings.Contains(err.Error(), "run `remora build` first") {
+		t.Fatalf("err = %v, want the build-first error", err)
+	}
+}
+
+// When bootc cannot report the deployment, apply must fail rather than switch
+// blind.
+func TestApplyPlanBootcFailureIsAnError(t *testing.T) {
+	putOnPath(t, "podman", "#!/bin/sh\necho sha256:built\n")
+	putOnPath(t, "bootc", "#!/bin/sh\nexit 1\n")
+	if _, _, err := ApplyPlan(&manifest.Manifest{}); err == nil {
+		t.Fatal("expected an error when bootc status fails")
+	}
+}
+
+// upgrade moves the pin to the registry's current digest for the same image
+// and keeps the old pin for rollback; an unchanged digest rewrites nothing.
+func TestUpgradeBaseMovesPin(t *testing.T) {
+	const name = "quay.io/fedora/fedora-bootc"
+	cases := []struct {
+		name, latest, wantPrevious string
+	}{
+		{"new digest", "sha256:new", name + "@sha256:old"},
+		{"up to date", "sha256:old", name + "@sha256:older"},
+	}
+	for _, c := range cases {
+		putOnPath(t, "skopeo", "#!/bin/sh\necho "+c.latest+"\n")
+		dir := t.TempDir()
+		for _, pin := range []string{name + "@sha256:older", name + "@sha256:old"} {
+			if err := manifest.SaveBase(dir, pin); err != nil {
+				t.Fatal(err)
+			}
+		}
+		old, updated, err := UpgradeBase(dir, &manifest.Manifest{Base: name})
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if old != name+"@sha256:old" {
+			t.Errorf("%s: old = %q", c.name, old)
+		}
+		if want := name + "@" + c.latest; updated != want || manifest.LoadBase(dir) != want {
+			t.Errorf("%s: updated = %q, pin = %q, want %q", c.name, updated, manifest.LoadBase(dir), want)
+		}
+		if prev := manifest.LoadBasePrevious(dir); prev != c.wantPrevious {
+			t.Errorf("%s: base.previous = %q, want %q", c.name, prev, c.wantPrevious)
+		}
+	}
+}
+
+// An unreachable registry fails the upgrade and leaves the pin alone.
+func TestUpgradeBaseRegistryFailureKeepsPin(t *testing.T) {
+	putOnPath(t, "skopeo", "#!/bin/sh\nexit 1\n")
+	dir := t.TempDir()
+	const pin = "quay.io/fedora/fedora-bootc@sha256:old"
+	if err := manifest.SaveBase(dir, pin); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := UpgradeBase(dir, &manifest.Manifest{}); err == nil {
+		t.Fatal("expected an error when the registry is unreachable")
+	}
+	if got := manifest.LoadBase(dir); got != pin {
+		t.Errorf("pin = %q, want it unchanged %q", got, pin)
+	}
+}
+
+// rebase records the image name in the manifest and the digest in the pin
+// file. A ref given with a digest is used as is, without the registry.
+func TestRebaseBasePinsAndRecordsName(t *testing.T) {
+	cases := []struct {
+		name, ref, skopeo, wantPin string
+	}{
+		{"tag resolved from registry", "docker.io/library/debian:13", "#!/bin/sh\necho sha256:new\n", "docker.io/library/debian:13@sha256:new"},
+		{"digest given", "docker.io/library/debian@sha256:abc", "#!/bin/sh\nexit 1\n", "docker.io/library/debian@sha256:abc"},
+	}
+	for _, c := range cases {
+		putOnPath(t, "skopeo", c.skopeo)
+		dir := t.TempDir()
+		const old = "quay.io/fedora/fedora-bootc@sha256:old"
+		if err := manifest.SaveBase(dir, old); err != nil {
+			t.Fatal(err)
+		}
+		m := &manifest.Manifest{Packages: []string{"htop"}}
+		pinned, err := RebaseBase(dir, m, c.ref)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if pinned != c.wantPin || manifest.LoadBase(dir) != c.wantPin {
+			t.Errorf("%s: pinned = %q, pin = %q, want %q", c.name, pinned, manifest.LoadBase(dir), c.wantPin)
+		}
+		wantName, _, _ := strings.Cut(c.wantPin, "@")
+		saved, err := manifest.Load(dir)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if saved.Base != wantName {
+			t.Errorf("%s: manifest base = %q, want the undigested %q", c.name, saved.Base, wantName)
+		}
+		if prev := manifest.LoadBasePrevious(dir); prev != old {
+			t.Errorf("%s: base.previous = %q, want %q", c.name, prev, old)
+		}
+	}
+}
+
+// When the new base cannot be pinned, neither the manifest nor the pin moves.
+func TestRebaseBaseRegistryFailureWritesNothing(t *testing.T) {
+	putOnPath(t, "skopeo", "#!/bin/sh\nexit 1\n")
+	dir := t.TempDir()
+	const old = "quay.io/fedora/fedora-bootc@sha256:old"
+	if err := manifest.SaveBase(dir, old); err != nil {
+		t.Fatal(err)
+	}
+	m := &manifest.Manifest{Base: "quay.io/fedora/fedora-bootc"}
+	if _, err := RebaseBase(dir, m, "docker.io/library/debian:13"); err == nil {
+		t.Fatal("expected an error when the registry is unreachable")
+	}
+	if m.Base != "quay.io/fedora/fedora-bootc" {
+		t.Errorf("manifest base changed to %q", m.Base)
+	}
+	if _, err := os.Stat(manifest.Path(dir)); !os.IsNotExist(err) {
+		t.Errorf("manifest written on failure")
+	}
+	if got := manifest.LoadBase(dir); got != old {
+		t.Errorf("pin = %q, want it unchanged %q", got, old)
+	}
+}

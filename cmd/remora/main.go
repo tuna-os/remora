@@ -347,23 +347,15 @@ func cmdApply(dir string, apply bool, softReboot string) error {
 	if err != nil {
 		return err
 	}
-	tag := m.ImageTag()
-	digest, err := host.LocalDigest(tag)
+	ref, noop, err := buildplan.ApplyPlan(m)
 	if err != nil {
 		return err
 	}
-	if digest == "" {
-		return fmt.Errorf("no local image %s — run `remora build` first", tag)
-	}
-	current, err := bootc.StagedOrBootedDigest()
-	if err != nil {
-		return err
-	}
-	if current != "" && current == digest {
+	if noop {
+		tag, digest, _ := host.SplitDigest(ref)
 		fmt.Printf("%s is already staged or booted (%s) — nothing to do\n", tag, digest)
 		return nil
 	}
-	ref := tag + "@" + digest
 	fmt.Println("switching to", ref)
 	return bootc.BootcSwitch(ref, apply, softReboot)
 }
@@ -377,22 +369,13 @@ func cmdUpgrade(dir string, noBuild bool) error {
 	if err != nil {
 		return err
 	}
-	old, err := buildplan.ResolveBase(dir, m)
+	old, updated, err := buildplan.UpgradeBase(dir, m)
 	if err != nil {
 		return err
 	}
-	name, _, _ := host.SplitDigest(old)
-	digest, err := host.LatestDigest(name)
-	if err != nil {
-		return err
-	}
-	updated := name + "@" + digest
 	if updated == old {
 		fmt.Println("base image is up to date:", old)
 	} else {
-		if err := manifest.SaveBase(dir, updated); err != nil {
-			return err
-		}
 		fmt.Printf("base image updated:\n  from %s\n  to   %s\n", old, updated)
 	}
 	// Reconcile even with --no-build. The pin just moved, so the
@@ -429,15 +412,8 @@ func cmdRebase(dir string, args []string, noBuild bool) error {
 	if err != nil {
 		return err
 	}
-	pinned, err := host.PinBase(imageRef)
+	pinned, err := buildplan.RebaseBase(dir, m, imageRef)
 	if err != nil {
-		return err
-	}
-	m.Base, _, _ = host.SplitDigest(pinned)
-	if err := m.Save(dir); err != nil {
-		return err
-	}
-	if err := manifest.SaveBase(dir, pinned); err != nil {
 		return err
 	}
 	fmt.Println("base image set to", pinned)
