@@ -127,6 +127,11 @@ sudo remora enable               # rebuild automatically (default: daily 04:00)
 remora status
 ```
 
+Coming from `rpm-ostree install`? The
+[rpm-ostree migration guide](docs/migrating-from-rpm-ostree.md) maps its
+commands and state onto remora's and ends with a checklist for moving an
+existing system over.
+
 ## Manifest (`/etc/remora/remora.yaml`)
 
 ```yaml
