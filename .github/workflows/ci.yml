@@ -38,7 +38,13 @@ jobs:
       - name: Run the local-equivalent checks
         run: |
           go build ./...
-          just check
+          just fmt-check lint
+          go test ./... -count=1 -coverprofile=coverage.out -covermode=atomic
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: false
       - name: Smoke generated project without a bootc host
         run: |
           go build -o remora ./cmd/remora
