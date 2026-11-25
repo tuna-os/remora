@@ -96,8 +96,12 @@ offline check that every `uses:` has a lockfile entry. A zizmor finding that
 is intentional gets an inline `# zizmor: ignore[<rule>] <reason>` comment on
 that line, as `ci.yml` does for `setup-just`.
 
-> **Configured but not enforced.** `codecov.yml` sets coverage targets, but
-> nothing uploads coverage. It is not a gate today.
+> **Configured but not enforced.** `codecov.yml` sets coverage targets. The
+> `test` job in `ci.yml` writes `coverage.out` and sends it to Codecov, but the
+> upload step passes no Codecov token, so Codecov rejects the upload
+> (`Token required - not valid tokenless upload`) and reports no coverage
+> status. The step sets `fail_ci_if_error: false`, so the rejection does not
+> fail CI. Coverage is not a gate today.
 
 `CONTRIBUTING.md` requires a DCO sign-off (`git commit -s`) on every commit;
 no workflow checks it, so it is a convention a human must honour rather than
