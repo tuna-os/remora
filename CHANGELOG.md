@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.8](https://github.com/tuna-os/remora/compare/v0.4.7...v0.4.8) (2026-11-25)
+
+
+### Bug Fixes
+
+* **ci:** skip pull_request CI run on release-please branches ([#199](https://github.com/tuna-os/remora/issues/199)) ([1e39c08](https://github.com/tuna-os/remora/commit/1e39c08974081b2719e511d596909310a89f6266))
+* evaluate the configured coverage threshold ([#203](https://github.com/tuna-os/remora/issues/203)) ([daeadfa](https://github.com/tuna-os/remora/commit/daeadfa05e6fcde169fb8c861c9547e9078a683d))
+
+
+### Refactoring
+
+* **buildplan:** move the apply no-op and base pin transitions out of the CLI ([#195](https://github.com/tuna-os/remora/issues/195)) ([869b8ed](https://github.com/tuna-os/remora/commit/869b8ed1d045531d000ac5b8b770865e6038628b))
+* **pkgmgr:** give the package-manager family list one owner ([#198](https://github.com/tuna-os/remora/issues/198)) ([b68932b](https://github.com/tuna-os/remora/commit/b68932bef08d29959499a88e7d8c8643a4f659fa))
+* **registry:** move digest pinning out of internal/host ([#196](https://github.com/tuna-os/remora/issues/196)) ([fbc9dc0](https://github.com/tuna-os/remora/commit/fbc9dc03eb6a3de36e493e57f1226ad9ed678409))
+
+
+### Documentation
+
+* add migration guide for rpm-ostree users ([#200](https://github.com/tuna-os/remora/issues/200)) ([dc36ac1](https://github.com/tuna-os/remora/commit/dc36ac112f48f3c893cb0e60c83a4f3624c3ebd2))
+* **readme:** link the rpm-ostree migration guide ([#201](https://github.com/tuna-os/remora/issues/201)) ([27268f2](https://github.com/tuna-os/remora/commit/27268f2a4fb5587605233781d49ce3450a98f18a))
+
 ## [0.4.7](https://github.com/tuna-os/remora/compare/v0.4.6...v0.4.7) (2026-11-13)
 
 
